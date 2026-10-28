@@ -10,14 +10,14 @@ function load(): AppData {
     if (!raw) return initialData
     const parsed = JSON.parse(raw)
     const cleanTracks = (parsed.tracks || []).filter((track: Track) => !track.id.startsWith('seed-'))
-    const cleanCars = (parsed.cars || []).filter((car: Car) => !/^car-\d+$/.test(car.id))
+    const cleanCars = (parsed.cars || []).filter((car: Car) => !/^car-\d+$/.test(car.id)).map((car:Car)=>({ ...car, tags: car.tags || [] }))
     return {
       ...initialData,
       ...parsed,
       tracks: cleanTracks,
       cars: cleanCars,
       matchArchives: parsed.matchArchives || [],
-      match: { ...initialData.match, ...parsed.match },
+      match: { ...initialData.match, ...parsed.match, modeParams: parsed.match?.modeParams || initialData.match.modeParams, specialRules: parsed.match?.specialRules || [], completedGrandRounds: parsed.match?.completedGrandRounds || [] },
     }
   } catch { return initialData }
 }

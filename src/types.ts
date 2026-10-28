@@ -30,6 +30,7 @@ export interface Car {
   id: string
   name: string
   grade: string
+  tags: string[]
   description?: string
   skins: CarSkin[]
   selectedSkinId: string
@@ -54,10 +55,14 @@ export interface WheelConfig {
 
 export interface Competitor { id: string; name: string; grandScore: number; score: number; color: string; avatar?: string }
 export interface RoundResult { id: string; trackId: string; scores: Record<string, number>; notes: string }
+export interface CompletedGrandRound { id: string; modeId: string; specialRules: string[]; rounds: RoundResult[]; finalScores: Record<string, number>; winnerIds: string[]; completedAt: string }
 export interface MatchState {
   modeId: string
+  modeParams: Record<string, number>
+  specialRules: string[]
   competitors: Competitor[]
   rounds: RoundResult[]
+  completedGrandRounds: CompletedGrandRound[]
   activeRound: number
   configured: boolean
   showGrandScore: boolean

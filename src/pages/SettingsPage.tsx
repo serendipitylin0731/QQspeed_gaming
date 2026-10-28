@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { CheckCircle2, CloudDownload, Database, Download, ExternalLink, FileJson, RefreshCw, Upload, Wifi } from 'lucide-react'
+import { CheckCircle2, CloudDownload, Download, ExternalLink, FileJson, RefreshCw, Upload, Wifi } from 'lucide-react'
 import type { AppData } from '../types'
 
 interface Props { data:AppData; replace:(d:AppData)=>void; syncing:boolean; syncMessage:string; syncOfficial:(quiet?:boolean)=>Promise<void>; update:(fn:(d:AppData)=>AppData)=>void }
@@ -10,7 +10,6 @@ export function SettingsPage({data,replace,syncing,syncMessage,syncOfficial}:Pro
   return <div className="settings-page page-enter"><div className="page-title"><div><span className="eyebrow">DATA & SYSTEM</span><h1>数据管理</h1><p>同步官方资料，备份你的全部本地数据</p></div></div>
     <div className="settings-grid"><section className="panel setting-card official-sync"><div className="setting-icon"><Wifi/></div><div><span className="eyebrow">OFFICIAL DATABASE</span><h2>官网资料同步</h2><p>从 QQ飞车手游官网增量获取地图与赛车。同步只会添加或更新官方字段，不会覆盖图池、王图、纪录和自定义皮肤。</p><div className="sync-stats"><span><strong>{data.tracks.length}</strong> 张地图</span><span><strong>{data.cars.length}</strong> 辆赛车</span><span>{data.lastSync?<>上次同步<br/><strong>{new Date(data.lastSync).toLocaleString('zh-CN')}</strong></>:'从未同步'}</span></div><button className="btn primary" disabled={syncing||!window.qqspeed} onClick={()=>syncOfficial()}><RefreshCw size={16} className={syncing?'spin':''}/>{syncing?'正在同步…':'立即同步官网'}</button>{!window.qqspeed&&<small className="browser-note">网页版预览无法跨域同步；在 Electron 应用中可用。</small>}{syncMessage&&<div className="inline-message"><CheckCircle2 size={15}/>{syncMessage}</div>}</div></section>
       <section className="panel setting-card"><div className="setting-icon purple"><FileJson/></div><div><span className="eyebrow">PORTABLE BACKUP</span><h2>备份与恢复</h2><p>导出一个 JSON 文件，包含地图设置、纪录、赛车皮肤、转盘配置和当前比赛状态。</p><div className="backup-actions"><button className="btn ghost" onClick={backup}><Download size={16}/> 导出全部数据</button><button className="btn ghost" onClick={()=>file.current?.click()}><Upload size={16}/> 从备份恢复</button></div><input type="file" accept="application/json" hidden ref={file} onChange={restore}/>{importMsg&&<div className="inline-message"><CheckCircle2 size={15}/>{importMsg}</div>}</div></section>
-      <section className="panel setting-card compact"><div className="setting-icon green"><Database/></div><div><h2>本地优先</h2><p>所有个人数据都保存在这台电脑，不上传云端。修改后即时自动保存。</p></div></section>
       <section className="panel setting-card compact"><div className="setting-icon amber"><CloudDownload/></div><div><h2>数据来源</h2><p>官方地图与赛车资料来自腾讯 QQ飞车手游官网图鉴。</p><button className="text-btn" onClick={()=>window.qqspeed?.openExternal('https://speedm.qq.com/web201712/map_list.shtml')}>打开官网 <ExternalLink size={13}/></button></div></section>
     </div>
   </div>
