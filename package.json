@@ -1,6 +1,6 @@
 {
   "name": "qqspeed-vault",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "QQ飞车地图、赛车、图池与赛事管理本地应用",
   "type": "module",
   "main": "electron/main.cjs",

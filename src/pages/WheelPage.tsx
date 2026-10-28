@@ -16,7 +16,10 @@ export function WheelPage({ data, update }: { data: AppData; update: (fn: (d: Ap
   const [name,setName]=useState('我的图池')
   const candidates=useMemo(()=>data.tracks.filter(t=>filter.stars.includes(t.star)&&(filter.base==='all'||filter.base==='custom'&&filter.customTrackIds.includes(t.id)||filter.base!=='custom'&&t.pools[filter.base])&&(!filter.excludeSailing||!t.pools.sailing)&&(!filter.excludeNostalgia||!t.pools.nostalgia)),[data.tracks,filter])
   const available=filter.noRepeat?candidates.filter(t=>!drawn.includes(t.id)):candidates
-  const visible=candidates.slice(0,12)
+  const visible=candidates
+  const labelRadius=visible.length<=12?139:visible.length<=24?145:visible.length<=48?150:154
+  const labelSize=visible.length<=12?8:visible.length<=24?7:visible.length<=48?6:5
+  const labelWidth=visible.length<=12?78:visible.length<=24?62:visible.length<=48?46:30
   const gradient=visible.length?`conic-gradient(${visible.map((_,i)=>{const start=i/visible.length*100,end=(i+1)/visible.length*100,line=Math.min(.3,(100/visible.length)*.06);return `${colors[i%colors.length]} ${start}% ${end-line}%,rgba(255,255,255,.42) ${end-line}% ${end}%`}).join(',')})`:'#20283a'
   function spin(){if(!available.length||spinning)return;setSpinning(true);const pick=available[Math.floor(Math.random()*available.length)];setRotation(x=>x+1440+Math.random()*320);setTimeout(()=>{setResult(pick.id);if(filter.noRepeat)setDrawn(x=>[...x,pick.id]);setSpinning(false)},1900)}
   function save(){if(data.wheels.length>=100)return;const item:WheelConfig={id:`wheel-${Date.now()}`,name:name.trim()||'未命名配置',filter,drawnIds:drawn,createdAt:new Date().toISOString()};update(d=>({...d,wheels:[item,...d.wheels]}))}
@@ -35,8 +38,8 @@ export function WheelPage({ data, update }: { data: AppData; update: (fn: (d: Ap
       </aside>
       <section className="wheel-stage panel">
         <div className="wheel-meta"><span><strong>{candidates.length}</strong> 张候选</span>{filter.noRepeat&&<span>剩余 <strong>{available.length}</strong> 张</span>}<button onClick={()=>{setDrawn([]);setResult('')}}><RotateCcw size={14}/> 重置状态</button></div>
-        <div className="wheel-wrap"><div className="wheel-pointer"/><div className="wheel" style={{background:gradient,transform:`rotate(${rotation}deg)`}}>{visible.map((track,index)=>{const angle=(index+.5)*360/visible.length;return <span className="wheel-label" key={track.id} style={{transform:`translate(-50%,-50%) rotate(${angle}deg) translateY(-139px) rotate(${-angle-rotation}deg)`}}>{track.name.slice(0,7)}</span>})}<div className="wheel-center"><img src="./logo.svg"/></div></div></div>
-        <div className="wheel-legend">{visible.slice(0,8).map((t,i)=><span key={t.id}><i style={{background:colors[i%colors.length]}}/>{t.name}</span>)}{visible.length>8&&<small>另有 {visible.length-8} 张候选赛道</small>}</div>
+        <div className="wheel-wrap"><div className="wheel-pointer"/><div className="wheel" style={{background:gradient,transform:`rotate(${rotation}deg)`}}>{visible.map((track,index)=>{const angle=(index+.5)*360/visible.length,readableTurn=angle>180?90:-90;return <span className="wheel-label radial" title={track.name} key={track.id} style={{width:labelWidth,fontSize:labelSize,transform:`translate(-50%,-50%) rotate(${angle}deg) translateY(-${labelRadius}px) rotate(${readableTurn}deg)`}}>{track.name}</span>})}<div className="wheel-center"><img src="./logo.svg"/></div></div></div>
+        <div className="wheel-legend">{visible.slice(0,8).map((t,i)=><span key={t.id}><i style={{background:colors[i%colors.length]}}/>{t.name}</span>)}{visible.length>8&&<small>盘面已显示全部 {visible.length} 张地图</small>}</div>
         {resultTrack?<div className="wheel-result"><SmartImage src={resultTrack.coverHorizontal}/><div><small>本次抽取</small><strong>{resultTrack.name}</strong><span>{resultTrack.star} 星赛道</span></div></div>:<div className="wheel-placeholder"><Sparkles/><span>{available.length?'点击按钮，决定下一张赛道':'候选地图已抽完，请重置状态'}</span></div>}
         <button className="spin-button" disabled={!available.length||spinning} onClick={spin}><Sparkles size={20}/>{spinning?'转盘旋转中…':'开始抽取'}</button>
       </section>
