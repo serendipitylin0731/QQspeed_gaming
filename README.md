@@ -27,6 +27,6 @@ npm run dist
 
 正式安装包统一发布在 [GitHub Releases](https://github.com/serendipitylin0731/QQspeed_gaming/releases)，不提交到源码仓库。
 
-本地执行构建时，安装包输出到 `release/极速仓库 Setup 1.2.1.exe`。推送 `v*` 标签后，GitHub Actions 会自动测试、构建并上传 Release 资产。
+本地执行构建时，安装包输出到 `release/极速仓库 Setup 1.3.0.exe`。推送 `v*` 标签后，GitHub Actions 会自动测试、构建并上传 Release 资产。
 
 > 应用数据只保存在本机 Electron 用户数据目录。官网资料和封面需要联网同步与显示。

@@ -53,8 +53,17 @@ export interface WheelConfig {
   createdAt: string
 }
 
-export interface Competitor { id: string; name: string; grandScore: number; score: number; color: string; avatar?: string }
-export interface RoundResult { id: string; trackId: string; scores: Record<string, number>; notes: string }
+export interface MatchPlayer { id: string; name: string }
+export interface Competitor { id: string; name: string; grandScore: number; score: number; color: string; avatar?: string; players?: MatchPlayer[] }
+export interface RoundResult {
+  id: string
+  trackId: string
+  scores: Record<string, number>
+  notes: string
+  winnerIds?: string[]
+  playerScores?: Record<string, number>
+  playerTimes?: Record<string, number>
+}
 export interface CompletedGrandRound { id: string; modeId: string; specialRules: string[]; rounds: RoundResult[]; finalScores: Record<string, number>; winnerIds: string[]; completedAt: string }
 export interface MatchState {
   modeId: string
