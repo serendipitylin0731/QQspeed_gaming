@@ -10,6 +10,9 @@ export const initialData: AppData = {
     modeId: '1v1单挑抢n',
     modeParams: { n: 5, k: 2, m: 3, t: 5 },
     specialRules: [],
+    specialParams: { overtimeCap: 8, fullSpeedGap: 3 },
+    specialTrackIds: {},
+    trackPool: { base: 'all', stars: [1,2,3,4,5,6,7], excludeSailing: false, excludeNostalgia: false, customTrackIds: [], noRepeat: false },
     competitors: [
       { id: 'team-a', name: '蓝队', grandScore: 0, score: 0, color: '#42a5ff' },
       { id: 'team-b', name: '橙队', grandScore: 0, score: 0, color: '#ff8a47' },
