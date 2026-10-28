@@ -9,9 +9,13 @@ function load(): AppData {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return initialData
     const parsed = JSON.parse(raw)
+    const cleanTracks = (parsed.tracks || []).filter((track: Track) => !track.id.startsWith('seed-'))
+    const cleanCars = (parsed.cars || []).filter((car: Car) => !/^car-\d+$/.test(car.id))
     return {
       ...initialData,
       ...parsed,
+      tracks: cleanTracks,
+      cars: cleanCars,
       matchArchives: parsed.matchArchives || [],
       match: { ...initialData.match, ...parsed.match },
     }
@@ -41,10 +45,12 @@ export function useAppData() {
         })
         const officialCars = result.cars.map((fresh) => {
           const old = existingCars.get(fresh.id)
-          return old ? { ...fresh, ...old, name: fresh.name, grade: fresh.grade } : fresh
+          if (!old) return fresh
+          const skins = [...fresh.skins, ...old.skins.filter(skin=>!skin.id.startsWith('official-skin-'))]
+          return { ...fresh, skins, selectedSkinId: skins.some(skin=>skin.id===old.selectedSkinId) ? old.selectedSkinId : fresh.selectedSkinId }
         }) as Car[]
-        const customMaps = current.tracks.filter((x) => !x.id.startsWith('official-map-'))
-        const customCars = current.cars.filter((x) => !x.id.startsWith('official-car-'))
+        const customMaps = current.tracks.filter((x) => x.id.startsWith('custom-'))
+        const customCars = current.cars.filter((x) => x.id.startsWith('custom-'))
         return { ...current, tracks: [...officialMaps, ...customMaps], cars: [...officialCars, ...customCars], lastSync: result.syncedAt }
       })
       setSyncMessage(`同步完成：${result.maps.length} 张地图，${result.cars.length} 辆赛车`)
@@ -53,7 +59,7 @@ export function useAppData() {
     } finally { setSyncing(false) }
   }, [syncing])
 
-  useEffect(() => { if (window.qqspeed && !data.lastSync) syncOfficial(true) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (window.qqspeed) syncOfficial(true) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = useCallback((recipe: (current: AppData) => AppData) => setData(recipe), [])
   const replace = useCallback((next: AppData) => setData(next), [])

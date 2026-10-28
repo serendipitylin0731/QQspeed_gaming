@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain, shell } = require('electron')
 const path = require('path')
-const { normalizeUrl, groupOfficialCars } = require('./official-data.cjs')
+const { groupOfficialCars, normalizeOfficialMaps } = require('./official-data.cjs')
 
 const MAP_URL = 'https://speedm.qq.com/zlkdatasys/data/map_list/list.json'
 const CAR_URL = 'https://speedm.qq.com/zlkdatasys/data/car_list/list.json'
@@ -22,14 +22,7 @@ ipcMain.handle('official:sync', async () => {
   const cars = groupOfficialCars(rawCars)
   return {
     syncedAt: new Date().toISOString(),
-    maps: rawMaps.map((item) => ({
-      id: `official-map-${item.dtid_87}`,
-      name: item.dtm_88,
-      star: Number(item.jytg_a3) || 0,
-      coverHorizontal: normalizeUrl(item.tt_8a || item.slt_3c),
-      coverVertical: normalizeUrl(item.tt_8a || item.slt_3c),
-      description: item.jj_3b || '',
-    })),
+    maps: normalizeOfficialMaps(rawMaps),
     cars,
   }
 })

@@ -2,7 +2,7 @@ import { createRequire } from 'node:module'
 import { describe, expect, it } from 'vitest'
 
 const require = createRequire(import.meta.url)
-const { groupOfficialCars } = require('../../electron/official-data.cjs')
+const { groupOfficialCars, normalizeOfficialMaps } = require('../../electron/official-data.cjs')
 
 describe('official car grouping', () => {
   it('groups source variants as skins of one base car', () => {
@@ -14,5 +14,13 @@ describe('official car grouping', () => {
     expect(cars).toHaveLength(1)
     expect(cars[0].name).toBe('源极之星')
     expect(cars[0].skins.map((skin:{name:string})=>skin.name)).toEqual(['原皮','大河神卫','风间墨影'])
+  })
+})
+
+describe('official map normalization', () => {
+  it('uses the website list thumbnail instead of the detail banner', () => {
+    const [track] = normalizeOfficialMaps([{ dtid_87:'37', dtm_88:'秋名山', jytg_a3:'5', tt_8a:'//detail.jpg', slt_3c:'//list-cover.jpg' }])
+    expect(track.coverHorizontal).toBe('https://list-cover.jpg')
+    expect(track.coverVertical).toBe('https://list-cover.jpg')
   })
 })

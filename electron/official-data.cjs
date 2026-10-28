@@ -39,4 +39,15 @@ function groupOfficialCars(rawCars) {
   })
 }
 
-module.exports = { normalizeUrl, groupOfficialCars }
+function normalizeOfficialMaps(rawMaps) {
+  return rawMaps.map((item) => ({
+    id: `official-map-${item.dtid_87}`,
+    name: item.dtm_88,
+    star: Number(item.jytg_a3) || 0,
+    coverHorizontal: normalizeUrl(item.slt_3c || item.tt_8a),
+    coverVertical: normalizeUrl(item.slt_3c || item.tt_8a),
+    description: item.jj_3b || '',
+  }))
+}
+
+module.exports = { normalizeUrl, groupOfficialCars, normalizeOfficialMaps }
