@@ -25,6 +25,6 @@ npm run dev
 npm run dist
 ```
 
-安装包输出到 `release/极速仓库 Setup 1.1.1.exe`。
+安装包输出到 `release/极速仓库 Setup 1.1.2.exe`。
 
 > 应用数据只保存在本机 Electron 用户数据目录。官网资料和封面需要联网同步与显示。
