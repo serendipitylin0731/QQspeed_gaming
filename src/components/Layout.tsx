@@ -19,10 +19,9 @@ interface Props {
   collapsed: boolean
   setCollapsed: (value: boolean) => void
   children: ReactNode
-  syncMessage?: string
 }
 
-export function Layout({ page, setPage, collapsed, setCollapsed, children, syncMessage }: Props) {
+export function Layout({ page, setPage, collapsed, setCollapsed, children }: Props) {
   const current = nav.find((item) => item.id === page)!
   return <div className={`app-shell ${collapsed ? 'nav-collapsed' : ''}`}>
     <aside className="sidebar">
@@ -44,7 +43,6 @@ export function Layout({ page, setPage, collapsed, setCollapsed, children, syncM
       <header className="topbar">
         <button className="icon-btn" onClick={() => setCollapsed(!collapsed)}>{collapsed ? <Menu size={19}/> : <X size={19}/>}</button>
         <div className="crumb"><Gauge size={17}/><span>极速仓库</span><ChevronRight size={14}/><strong>{current.label}</strong></div>
-        {syncMessage && <div className="sync-pill">{syncMessage}</div>}
         <div className="window-drag" />
       </header>
       <div className="page-content">{children}</div>

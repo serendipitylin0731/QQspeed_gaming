@@ -52,13 +52,22 @@ export interface WheelConfig {
   createdAt: string
 }
 
-export interface Competitor { id: string; name: string; grandScore: number; score: number; color: string }
+export interface Competitor { id: string; name: string; grandScore: number; score: number; color: string; avatar?: string }
 export interface RoundResult { id: string; trackId: string; scores: Record<string, number>; notes: string }
 export interface MatchState {
   modeId: string
   competitors: Competitor[]
   rounds: RoundResult[]
   activeRound: number
+  configured: boolean
+  showGrandScore: boolean
+}
+
+export interface SavedMatch {
+  id: string
+  name: string
+  savedAt: string
+  match: MatchState
 }
 
 export interface AppData {
@@ -66,6 +75,7 @@ export interface AppData {
   cars: Car[]
   wheels: WheelConfig[]
   match: MatchState
+  matchArchives: SavedMatch[]
   lastSync?: string
 }
 

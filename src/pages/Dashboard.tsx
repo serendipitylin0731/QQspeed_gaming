@@ -1,6 +1,7 @@
 import { ArrowRight, CarFront, ChevronRight, Clock3, Crown, Database, LibraryBig, Play, Sparkles, Star, Trophy } from 'lucide-react'
 import type { AppData } from '../types'
 import type { PageId } from '../components/Layout'
+import { SmartImage } from '../components/SmartImage'
 
 export function Dashboard({ data, setPage }: { data: AppData; update: (fn: (d: AppData) => AppData) => void; setPage: (page: PageId) => void }) {
   const records = data.tracks.filter((x) => x.record)
@@ -35,7 +36,7 @@ export function Dashboard({ data, setPage }: { data: AppData; update: (fn: (d: A
         <div className="section-head"><div><span className="eyebrow">RECENT RECORDS</span><h2>最近纪录</h2></div><button className="text-btn" onClick={() => setPage('tracks')}>查看全部 <ArrowRight size={15}/></button></div>
         <div className="record-list">
           {recent.length ? recent.map((track) => <div className="record-row" key={track.id}>
-            <img src={track.coverHorizontal} alt=""/><div className="record-info"><strong>{track.name}</strong><span>{track.star} 星赛道 · {new Date(track.record!.updatedAt).toLocaleDateString('zh-CN')}</span></div>
+            <SmartImage src={track.coverHorizontal}/><div className="record-info"><strong>{track.name}</strong><span>{track.star} 星赛道 · {new Date(track.record!.updatedAt).toLocaleDateString('zh-CN')}</span></div>
             <div className="record-time"><small>个人最佳</small><strong>{track.record!.time}</strong></div>
           </div>) : <div className="empty-small">还没有纪录，去赛道仓库添加第一条吧。</div>}
         </div>
@@ -51,7 +52,7 @@ export function Dashboard({ data, setPage }: { data: AppData; update: (fn: (d: A
     <section className="king-strip panel">
       <div className="section-head"><div><span className="eyebrow">KING TRACKS</span><h2><Crown size={20}/> 我的王图</h2></div><span className="muted">点击星标可在赛道仓库管理，最多 15 张</span></div>
       <div className="king-cards">
-        {kings.slice(0, 6).map((track) => <button key={track.id} onClick={() => setPage('tracks')}><img src={track.coverHorizontal} alt=""/><span><strong>{track.name}</strong><small>{Array.from({length: Math.min(track.star, 6)}).map((_,i)=><Star key={i} size={11} fill="currentColor"/>)}</small></span><Crown className="crown" size={18} fill="currentColor"/></button>)}
+        {kings.slice(0, 6).map((track) => <button key={track.id} onClick={() => setPage('tracks')}><SmartImage src={track.coverHorizontal}/><span><strong>{track.name}</strong><small>{Array.from({length: Math.min(track.star, 6)}).map((_,i)=><Star key={i} size={11} fill="currentColor"/>)}</small></span><Crown className="crown" size={18} fill="currentColor"/></button>)}
         {kings.length === 0 && <div className="empty-small">还未设置王图</div>}
       </div>
     </section>

@@ -2,12 +2,19 @@ import { useCallback, useEffect, useState } from 'react'
 import { initialData } from '../data/seed'
 import type { AppData, Car, Track } from '../types'
 
-const STORAGE_KEY = 'qqspeed-vault-data-v1'
+const STORAGE_KEY = 'qqspeed-vault-data-v2'
 
 function load(): AppData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? { ...initialData, ...JSON.parse(raw) } : initialData
+    if (!raw) return initialData
+    const parsed = JSON.parse(raw)
+    return {
+      ...initialData,
+      ...parsed,
+      matchArchives: parsed.matchArchives || [],
+      match: { ...initialData.match, ...parsed.match },
+    }
   } catch { return initialData }
 }
 

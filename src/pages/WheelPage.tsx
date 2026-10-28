@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Check, ChevronDown, CircleOff, History, RotateCcw, Save, SlidersHorizontal, Sparkles, Trash2 } from 'lucide-react'
 import type { AppData, WheelConfig, WheelFilter } from '../types'
+import { SmartImage } from '../components/SmartImage'
 
 const defaultFilter: WheelFilter = { base:'all',stars:[3,4,5,6,7],excludeSailing:false,excludeNostalgia:false,customTrackIds:[],noRepeat:true }
 const colors=['#6d5dfc','#2ab6ff','#12c9a5','#f5a84b','#ef6577','#9e66ef','#3dd2e2','#7098ff']
@@ -33,8 +34,9 @@ export function WheelPage({ data, update }: { data: AppData; update: (fn: (d: Ap
       </aside>
       <section className="wheel-stage panel">
         <div className="wheel-meta"><span><strong>{candidates.length}</strong> 张候选</span>{filter.noRepeat&&<span>剩余 <strong>{available.length}</strong> 张</span>}<button onClick={()=>{setDrawn([]);setResult('')}}><RotateCcw size={14}/> 重置状态</button></div>
-        <div className="wheel-wrap"><div className="wheel-pointer"/><div className="wheel" style={{background:gradient,transform:`rotate(${rotation}deg)`}}>{visible.map((t,i)=><span key={t.id} style={{transform:`rotate(${(i+.5)*360/visible.length}deg)`}}>{t.name.slice(0,6)}</span>)}<div className="wheel-center"><img src="./logo.svg"/></div></div></div>
-        {resultTrack?<div className="wheel-result"><img src={resultTrack.coverHorizontal}/><div><small>本次抽取</small><strong>{resultTrack.name}</strong><span>{resultTrack.star} 星赛道</span></div></div>:<div className="wheel-placeholder"><Sparkles/><span>{available.length?'点击按钮，决定下一张赛道':'候选地图已抽完，请重置状态'}</span></div>}
+        <div className="wheel-wrap"><div className="wheel-pointer"/><div className="wheel" style={{background:gradient,transform:`rotate(${rotation}deg)`}}><div className="wheel-center"><img src="./logo.svg"/></div></div></div>
+        <div className="wheel-legend">{visible.slice(0,8).map((t,i)=><span key={t.id}><i style={{background:colors[i%colors.length]}}/>{t.name}</span>)}{visible.length>8&&<small>另有 {visible.length-8} 张候选赛道</small>}</div>
+        {resultTrack?<div className="wheel-result"><SmartImage src={resultTrack.coverHorizontal}/><div><small>本次抽取</small><strong>{resultTrack.name}</strong><span>{resultTrack.star} 星赛道</span></div></div>:<div className="wheel-placeholder"><Sparkles/><span>{available.length?'点击按钮，决定下一张赛道':'候选地图已抽完，请重置状态'}</span></div>}
         <button className="spin-button" disabled={!available.length||spinning} onClick={spin}><Sparkles size={20}/>{spinning?'转盘旋转中…':'开始抽取'}</button>
       </section>
       <aside className="saved-panel panel"><div className="section-head"><h2><History size={18}/> 已存配置</h2><span>{data.wheels.length}/100</span></div>{data.wheels.length?data.wheels.map(w=><div className="saved-row" key={w.id}><button onClick={()=>load(w)}><strong>{w.name}</strong><small>{w.filter.base==='all'?'全图池':w.filter.base==='peak'?'巅峰赛':w.filter.base==='league'?'联赛':'自定义'} · 已抽 {w.drawnIds.length}</small></button><button className="icon-btn danger" onClick={()=>update(d=>({...d,wheels:d.wheels.filter(x=>x.id!==w.id)}))}><Trash2 size={15}/></button></div>):<div className="empty-compact"><CircleOff/><p>暂无保存的转盘</p><span>设定条件后保存，抽取状态也会一并保留</span></div>}</aside>

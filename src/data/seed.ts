@@ -19,8 +19,7 @@ export const seedTracks: Track[] = [
   id: String(id), name: String(name), star: Number(star),
   coverHorizontal: mapCover(String(img)), coverVertical: mapCover(String(img)),
   pools: { sailing: index === 4 || index === 9, nostalgia: index === 1 || index === 3, peak: index < 8, league: index % 3 !== 2 },
-  king: index === 0 || index === 5,
-  record: index === 0 ? { time: '01:27.64', videoCode: 'QFS-7A2K9', updatedAt: new Date().toISOString() } : undefined,
+  king: false,
 }))
 
 export const seedCars: Car[] = [
@@ -43,12 +42,13 @@ export const initialData: AppData = {
   tracks: seedTracks,
   cars: seedCars,
   wheels: [],
+  matchArchives: [],
   match: {
     modeId: '1v1单挑抢n',
     competitors: [
       { id: 'team-a', name: '蓝队', grandScore: 0, score: 0, color: '#42a5ff' },
       { id: 'team-b', name: '橙队', grandScore: 0, score: 0, color: '#ff8a47' },
     ],
-    rounds: [], activeRound: 0,
+    rounds: [], activeRound: 0, configured: false, showGrandScore: true,
   },
 }

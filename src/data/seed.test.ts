@@ -7,12 +7,14 @@ describe('initial local data', () => {
     expect(new Set(seedCars.map((car) => car.id)).size).toBe(seedCars.length)
   })
 
-  it('keeps king tracks within the configured limit', () => {
-    expect(seedTracks.filter((track) => track.king).length).toBeLessThanOrEqual(15)
+  it('starts without king tracks or personal records', () => {
+    expect(seedTracks.filter((track) => track.king)).toHaveLength(0)
+    expect(seedTracks.filter((track) => track.record)).toHaveLength(0)
   })
 
   it('starts with a valid two-side match', () => {
     expect(initialData.match.competitors).toHaveLength(2)
     expect(initialData.match.rounds).toEqual([])
+    expect(initialData.match.configured).toBe(false)
   })
 })

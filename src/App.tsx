@@ -10,11 +10,12 @@ import { RulesPage } from './pages/RulesPage'
 import { SettingsPage } from './pages/SettingsPage'
 
 export default function App() {
-  const [page, setPage] = useState<PageId>('home')
+  const requested = new URLSearchParams(location.search).get('page') as PageId | null
+  const [page, setPage] = useState<PageId>(requested && ['home','tracks','cars','wheel','match','rules','settings'].includes(requested) ? requested : 'home')
   const [collapsed, setCollapsed] = useState(false)
   const store = useAppData()
   const common = { data: store.data, update: store.update }
-  return <Layout page={page} setPage={setPage} collapsed={collapsed} setCollapsed={setCollapsed} syncMessage={store.syncMessage}>
+  return <Layout page={page} setPage={setPage} collapsed={collapsed} setCollapsed={setCollapsed}>
     {page === 'home' && <Dashboard {...common} setPage={setPage}/>} 
     {page === 'tracks' && <TrackLibrary {...common}/>} 
     {page === 'cars' && <CarLibrary {...common}/>} 

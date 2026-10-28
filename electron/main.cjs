@@ -1,12 +1,9 @@
 const { app, BrowserWindow, ipcMain, shell } = require('electron')
 const path = require('path')
+const { normalizeUrl, groupOfficialCars } = require('./official-data.cjs')
 
 const MAP_URL = 'https://speedm.qq.com/zlkdatasys/data/map_list/list.json'
 const CAR_URL = 'https://speedm.qq.com/zlkdatasys/data/car_list/list.json'
-
-function normalizeUrl(value = '') {
-  return value.startsWith('//') ? `https:${value}` : value.replace(/^http:/, 'https:')
-}
 
 async function getCallbackJson(url) {
   const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 QQSpeedVault/1.0' } })
@@ -22,6 +19,7 @@ ipcMain.handle('official:sync', async () => {
   const [mapData, carData] = await Promise.all([getCallbackJson(MAP_URL), getCallbackJson(CAR_URL)])
   const rawMaps = Object.values(mapData).find(Array.isArray) || []
   const rawCars = Object.values(carData).find(Array.isArray) || []
+  const cars = groupOfficialCars(rawCars)
   return {
     syncedAt: new Date().toISOString(),
     maps: rawMaps.map((item) => ({
@@ -32,14 +30,7 @@ ipcMain.handle('official:sync', async () => {
       coverVertical: normalizeUrl(item.tt_8a || item.slt_3c),
       description: item.jj_3b || '',
     })),
-    cars: rawCars.map((item) => ({
-      id: `official-car-${String(item.cid_d3).toLowerCase()}`,
-      name: item.cm_4e,
-      grade: String(item.jb_43 || '其他').toUpperCase(),
-      description: item.jj_3b || '',
-      skins: [{ id: `base-${item.cid_d3}`, name: '原皮', cover: normalizeUrl(item.tt_8a || item.slt_3c), cutout: normalizeUrl(item.slt_3c || item.tt_8a) }],
-      selectedSkinId: `base-${item.cid_d3}`,
-    })),
+    cars,
   }
 })
 
