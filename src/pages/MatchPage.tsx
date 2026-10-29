@@ -173,7 +173,7 @@ function MatchEditor({data,match,onConfirm}:{data:AppData;match:MatchState;onCon
   const poolTracks=tracksInPool(data.tracks,draft.trackPool)
   const poolTrackMap=new Map(poolTracks.map(track=>[track.id,track]))
   const bpRule=draft.specialRules.find(rule=>rule.startsWith('赛道BP'))
-  const bpValid=!bpRule||draft.competitors.every(side=>{const kings=draft.specialTrackIds[`bp:${side.id}:king`]||[],bans=draft.specialTrackIds[`bp:${side.id}:ban`]||[];return kings.length===1&&kings.every(id=>poolTrackMap.get(id)?.king)&&(bpRule==='赛道BP（王图）'||bans.length===2&&bans.every(id=>poolTrackMap.has(id))&&bans.filter(id=>(poolTrackMap.get(id)?.star||0)>=5).length<=1)})
+  const bpValid=!bpRule||draft.competitors.every(side=>{const kings=draft.specialTrackIds[`bp:${side.id}:king`]||[],bans=draft.specialTrackIds[`bp:${side.id}:ban`]||[];return kings.length===1&&kings.every(id=>poolTrackMap.has(id))&&(bpRule==='赛道BP（王图）'||bans.length===2&&bans.every(id=>poolTrackMap.has(id))&&bans.filter(id=>(poolTrackMap.get(id)?.star||0)>=5).length<=1)})
   const fullSpeedValid=!draft.specialRules.includes('全速对决')||(draft.specialTrackIds.fullSpeed?.length||0)===2&&draft.specialTrackIds.fullSpeed.every(id=>(poolTrackMap.get(id)?.star||0)>=5)
   const invalid=draft.competitors.length<2||draft.competitors.some(side=>!side.name.trim()||(isTeamMode(draft.modeId)&&side.players?.some(player=>!player.name.trim())))||!draft.trackPool.stars.length||(draft.trackPool.base==='custom'&&!draft.trackPool.customTrackIds.length)||!bpValid||!fullSpeedValid
   return <div className="match-editor">
@@ -200,7 +200,7 @@ function SpecialTrackConfigurator({match,tracks,onChange}:{match:MatchState;trac
   if(!targets.length)return null
   const target=targets.find(item=>item.key===active)||targets[0]
   const selected=match.specialTrackIds[target.key]||[]
-  const source=target.kind==='king'?tracks.filter(track=>track.king):target.kind==='speed'?tracks.filter(track=>track.star>=5):tracks
+  const source=target.kind==='speed'?tracks.filter(track=>track.star>=5):tracks
   function toggle(track:Track){
     if(selected.includes(track.id)){onChange({...match.specialTrackIds,[target.key]:selected.filter(id=>id!==track.id)});return}
     const used=Object.entries(match.specialTrackIds).some(([key,ids])=>key!==target.key&&ids.includes(track.id))
@@ -208,7 +208,7 @@ function SpecialTrackConfigurator({match,tracks,onChange}:{match:MatchState;trac
     if(target.kind==='ban'&&track.star>=5&&selected.some(id=>(tracks.find(item=>item.id===id)?.star||0)>=5))return
     onChange({...match.specialTrackIds,[target.key]:target.max===1?[track.id]:[...selected,track.id].slice(-target.max)})
   }
-  return <div className="special-track-config"><div className="special-track-tabs">{targets.map(item=><button type="button" key={item.key} className={(item.key===target.key?'active ':'')+((match.specialTrackIds[item.key]?.length||0)===item.max?'complete':'')} onClick={()=>setActive(item.key)}>{item.label}<small>{match.specialTrackIds[item.key]?.length||0}/{item.max}</small></button>)}</div><p>{target.kind==='king'?'只能选择已经标记为王图的地图。':target.kind==='ban'?'选择两张禁用图，其中最多一张可以是五星及以上。':'选择两张五星及以上赛道；触发全速对决后将按顺序自动使用。'}</p><TrackSelector tracks={source} selectedIds={selected} multi compact onSelect={toggle}/></div>
+  return <div className="special-track-config"><div className="special-track-tabs">{targets.map(item=><button type="button" key={item.key} className={(item.key===target.key?'active ':'')+((match.specialTrackIds[item.key]?.length||0)===item.max?'complete':'')} onClick={()=>setActive(item.key)}>{item.label}<small>{match.specialTrackIds[item.key]?.length||0}/{item.max}</small></button>)}</div><p>{target.kind==='king'?`从本大局图池的 ${source.length} 张地图中指定一张王图，无需提前在仓库标记。`:target.kind==='ban'?'选择两张禁用图，其中最多一张可以是五星及以上。':'选择两张五星及以上赛道；触发全速对决后将按顺序自动使用。'}</p><TrackSelector tracks={source} selectedIds={selected} multi compact onSelect={toggle}/></div>
 }
 
 function TrackPicker({data,match,onPick,onClose}:{data:AppData;match:MatchState;onPick:(id:string)=>void;onClose:()=>void}){
