@@ -31,6 +31,11 @@ describe('grand round automation',()=>{
     expect(evaluateGrandRound(match)).toMatchObject({finished:true,winnerIds:['team-a']})
   })
 
+  it('honors a zero-point full-speed trigger threshold',()=>{
+    const match=makeMatch({modeId:'kvk组队积分赛',modeParams:{...initialData.match.modeParams,t:1},specialRules:['全速对决'],specialParams:{overtimeCap:8,fullSpeedGap:0},rounds:[round({'team-a':10,'team-b':9})]})
+    expect(evaluateGrandRound(match)).toMatchObject({finished:true,winnerIds:['team-a']})
+  })
+
   it('uses best and second-best results for the two-run time challenge',()=>{
     const match=makeMatch({modeId:'计时挑战赛',rounds:[round({'team-a':0,'team-b':0},{playerTimes:{'team-a':61,'team-b':62}}),round({'team-a':0,'team-b':0},{playerTimes:{'team-a':60,'team-b':59}})]})
     expect(evaluateGrandRound(match)).toMatchObject({finished:true,winnerIds:['team-b']})

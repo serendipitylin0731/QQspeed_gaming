@@ -72,6 +72,7 @@ export interface MatchState {
   specialRules: string[]
   specialParams: Record<string, number>
   specialTrackIds: Record<string, string[]>
+  specialSetupComplete: boolean
   trackPool: WheelFilter
   competitors: Competitor[]
   rounds: RoundResult[]

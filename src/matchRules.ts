@@ -65,7 +65,7 @@ export function evaluateGrandRound(match:MatchState):GrandEvaluation{
     if(match.rounds.length<target)return {finished:false,winnerIds:[],reason:`完成 ${target} 小局后结算（${match.rounds.length}/${target}）`,phase:'playing'}
     if(match.specialRules.includes('全速对决')){
       const baseScores=matchScores(match,match.rounds.slice(0,target)),values=Object.values(baseScores).sort((a,b)=>b-a)
-      const gap=(values[0]||0)-(values[1]||0),limit=match.specialParams.fullSpeedGap||3
+      const gap=(values[0]||0)-(values[1]||0),limit=match.specialParams.fullSpeedGap??3
       if(gap<=limit&&match.rounds.length<target+2)return {finished:false,winnerIds:[],reason:`全速对决已触发，还需完成 ${target+2-match.rounds.length} 张预选赛道`,phase:'overtime'}
     }
     if(top.length===1)return {finished:true,winnerIds:top,reason:'规定局数完成，积分最高者获胜',phase:'finished'}

@@ -12,6 +12,7 @@ export const initialData: AppData = {
     specialRules: [],
     specialParams: { overtimeCap: 8, fullSpeedGap: 3 },
     specialTrackIds: {},
+    specialSetupComplete: false,
     trackPool: { base: 'all', stars: [1,2,3,4,5,6,7], excludeSailing: false, excludeNostalgia: false, customTrackIds: [], noRepeat: false },
     competitors: [
       { id: 'team-a', name: '蓝队', grandScore: 0, score: 0, color: '#42a5ff' },
