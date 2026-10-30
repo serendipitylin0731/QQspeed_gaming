@@ -1,6 +1,7 @@
 export type PoolKey = 'sailing' | 'nostalgia' | 'peak' | 'league' | 'item'
 
 export interface TrackRecord {
+  carId?: string
   time: string
   videoCode: string
   qrImage?: string
@@ -17,6 +18,7 @@ export interface Track {
   pools: Record<PoolKey, boolean>
   king: boolean
   record?: TrackRecord
+  records?: TrackRecord[]
 }
 
 export interface CarSkin {

@@ -2,11 +2,12 @@ import { ArrowRight, CarFront, ChevronRight, Clock3, Crown, Database, LibraryBig
 import type { AppData } from '../types'
 import type { PageId } from '../components/Layout'
 import { SmartImage } from '../components/SmartImage'
+import { trackRecords } from '../data/trackRecords'
 
 export function Dashboard({ data, setPage }: { data: AppData; update: (fn: (d: AppData) => AppData) => void; setPage: (page: PageId) => void }) {
-  const records = data.tracks.filter((x) => x.record)
+  const records = data.tracks.flatMap(track => trackRecords(track).map(record=>({track,record})))
   const kings = data.tracks.filter((x) => x.king)
-  const recent = records.slice(0, 4)
+  const recent = [...records].sort((a,b)=>Date.parse(b.record.updatedAt)-Date.parse(a.record.updatedAt)).slice(0, 4)
   return <div className="dashboard page-enter">
     <section className="hero-panel">
       <div className="hero-copy">
@@ -35,9 +36,9 @@ export function Dashboard({ data, setPage }: { data: AppData; update: (fn: (d: A
       <div className="panel">
         <div className="section-head"><div><span className="eyebrow">RECENT RECORDS</span><h2>最近纪录</h2></div><button className="text-btn" onClick={() => setPage('tracks')}>查看全部 <ArrowRight size={15}/></button></div>
         <div className="record-list">
-          {recent.length ? recent.map((track) => <div className="record-row" key={track.id}>
-            <SmartImage src={track.coverHorizontal}/><div className="record-info"><strong>{track.name}</strong><span>{track.star} 星赛道 · {new Date(track.record!.updatedAt).toLocaleDateString('zh-CN')}</span></div>
-            <div className="record-time"><small>个人最佳</small><strong>{track.record!.time}</strong></div>
+          {recent.length ? recent.map(({track,record},index) => <div className="record-row" key={`${track.id}-${record.carId||index}`}>
+            <SmartImage src={track.coverHorizontal}/><div className="record-info"><strong>{track.name}</strong><span>{data.cars.find(car=>car.id===record.carId)?.name||'未指定赛车'} · {new Date(record.updatedAt).toLocaleDateString('zh-CN')}</span></div>
+            <div className="record-time"><small>个人纪录</small><strong>{record.time||'—'}</strong></div>
           </div>) : <div className="empty-small">还没有纪录，去赛道仓库添加第一条吧。</div>}
         </div>
       </div>

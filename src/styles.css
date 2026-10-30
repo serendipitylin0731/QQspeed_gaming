@@ -30,3 +30,11 @@
 .match-pool-bases{grid-template-columns:repeat(5,1fr)}
 .detail-savebar{justify-content:flex-end}
 @media(max-width:1200px){.match-pool-bases{grid-template-columns:repeat(2,1fr)}}
+.record-section-head,.track-record-header{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.record-section-head h2 small{color:#8492a8;font-size:11px;font-weight:400}
+.track-record-editor{padding:12px;margin-top:10px;background:#0d1522;border:1px solid #283448;border-radius:9px}
+.track-record-header{margin-bottom:8px;font-size:12px}
+.record-fields select{height:38px;border:1px solid #2a3548;background:#0c131f;border-radius:7px;color:#e1e8f5;padding:0 10px}
+.record-upload{display:inline-flex;align-items:center;gap:7px;color:#9cadff;font-size:11px;cursor:pointer;margin-top:8px}
+.record-upload input{display:none}
+.record-qr{display:flex;align-items:center;gap:10px;margin-top:10px}.record-qr img{width:80px;height:80px;object-fit:contain;background:#fff;border-radius:5px}
