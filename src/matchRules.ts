@@ -39,6 +39,33 @@ export function matchScores(match:MatchState,rounds=match.rounds){
   return Object.fromEntries(match.competitors.map(side=>[side.id,rounds.reduce((sum,round)=>sum+(round.scores[side.id]||0),0)]))
 }
 
+export interface ActiveTeamPlayer { playerId:string; index:number; health?:number }
+
+export function activeTeamPlayers(match:MatchState,rounds:MatchState['rounds']=match.rounds):Record<string,ActiveTeamPlayer|undefined>{
+  const result:Record<string,ActiveTeamPlayer|undefined>={}
+  const completed=rounds.filter(round=>round.recorded!==false)
+  if(match.modeId==='kvk接力抢n'){
+    const size=Math.max(1,match.modeParams.k||2),target=Math.max(1,match.modeParams.n||1)
+    const best=Math.max(0,...Object.values(matchScores(match,completed)))
+    const thresholds=Array.from({length:size-1},(_,index)=>index===0?Math.floor(target/size)+1:index===size-2?target-Math.floor(target/size):Math.floor(target*(index+1)/size)+1)
+    const index=thresholds.filter(threshold=>best>=threshold).length
+    for(const side of match.competitors){const player=side.players?.[index];result[side.id]=player?{playerId:player.id,index}:undefined}
+  }else if(match.modeId==='kvk组队滴血赛'){
+    const initial=Math.max(1,match.modeParams.n||5)
+    for(const side of match.competitors){
+      const players=side.players||[],health=players.map(()=>initial)
+      for(const round of completed){
+        const hasDetails=players.some(player=>Object.hasOwn(round.playerScores||{},`${side.id}:${player.id}`))
+        if(hasDetails){players.forEach((player,index)=>{health[index]=Math.max(0,health[index]+(round.playerScores?.[`${side.id}:${player.id}`]||0))})}
+        else {let lost=Math.max(0,-(round.scores[side.id]||0));for(let index=0;index<health.length&&lost>0;index++){const removed=Math.min(health[index],lost);health[index]-=removed;lost-=removed}}
+      }
+      const index=health.findIndex(value=>value>0),player=players[index]
+      result[side.id]=player?{playerId:player.id,index,health:health[index]}:undefined
+    }
+  }
+  return result
+}
+
 export function bestPlayerScores(match:MatchState,playerScores:Record<string,number>){
   return Object.fromEntries(match.competitors.map(side=>[side.id,Math.max(0,...(side.players||[]).map(player=>playerScores[`${side.id}:${player.id}`]??0))]))
 }

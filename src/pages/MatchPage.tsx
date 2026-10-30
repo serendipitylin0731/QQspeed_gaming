@@ -4,7 +4,7 @@ import { Modal } from '../components/Modal'
 import { SmartImage } from '../components/SmartImage'
 import { TrackConfirmation, TrackSelector } from '../components/TrackSelector'
 import { initialData } from '../data/seed'
-import { bestPlayerScores, bpFeatures, displayModeName, evaluateGrandRound, firstPlaceCandidates, kingTracksInFirstRoundOrder, matchScores, nextFullSpeedTrack, normalizeBpRules, pickAuthority, poolName, rankRoundScores, tracksInPool, trailingSide } from '../matchRules'
+import { activeTeamPlayers, bestPlayerScores, bpFeatures, displayModeName, evaluateGrandRound, firstPlaceCandidates, kingTracksInFirstRoundOrder, matchScores, nextFullSpeedTrack, normalizeBpRules, pickAuthority, poolName, rankRoundScores, tracksInPool, trailingSide } from '../matchRules'
 import type { AppData, Competitor, MatchPlayer, MatchState, RoundResult, SavedMatch, Track, WheelFilter } from '../types'
 
 const modes=['1v1单挑抢n','1v1绝活单挑赛','计时挑战赛','多人混战滴血赛','多人混战积分赛','多人混战抢n','kvk接力抢n','kvk组队滴血赛','kvk组队积分赛','kvk组队计时赛','kvk组队抢n']
@@ -47,6 +47,13 @@ function resizeRosters(competitors:Competitor[],size:number){return competitors.
 function roundPlayers(match:MatchState,side:Competitor){return (side.players||[]).map((player,index)=>({...player,name:match.useTeamNames?(isTeamMode(match.modeId)&&rosterSize(match)>1?`${side.name} ${index+1}`:side.name):player.name}))}
 function roundSideName(match:MatchState,side:Competitor){return !isTeamMode(match.modeId)&&!match.useTeamNames?side.players?.[0]?.name||side.name:side.name}
 function playerKey(sideId:string,player:MatchPlayer){return `${sideId}:${player.id}`}
+function sequencedTeamMode(match:MatchState){return match.modeId==='kvk接力抢n'||match.modeId==='kvk组队滴血赛'}
+function activeRoundPlayer(match:MatchState,side:Competitor,roundIndex:number){
+  const current=match.rounds[roundIndex],active=activeTeamPlayers(match,match.rounds.slice(0,roundIndex))[side.id]
+  const playerId=current?.activePlayerIds?.[side.id]||active?.playerId
+  const player=roundPlayers(match,side).find(item=>item.id===playerId)
+  return player?{...player,index:active?.index,health:active?.health}:undefined
+}
 function roundTotals(match:MatchState){return matchScores(match)}
 function displaySideScore(match:MatchState,side:Competitor){
   const total=roundTotals(match)[side.id]||0
@@ -85,9 +92,17 @@ export function MatchPage({ data, update }: { data: AppData; update: (fn: (d: Ap
   const missingFirstRanking=hasBp&&match.rounds.length>0&&!match.rounds[0].ranking
   const patch=(value:Partial<MatchState>)=>update(d=>({...d,match:{...d.match,...value}}))
   function addRound(trackId:string){const round:RoundResult={id:`round-${Date.now()}`,trackId,scores:Object.fromEntries(match.competitors.map(x=>[x.id,0])),notes:'',recorded:false};patch({rounds:[...match.rounds,round],activeRound:match.rounds.length});setPicking(false);setEditingRound(round)}
-  function updateRound(round:RoundResult){
-    setScrollVersion(value=>value+1)
+  function updateRound(round:RoundResult):string|undefined{
     const next={...match,rounds:match.rounds.map(item=>item.id===round.id?{...round,recorded:true}:item)}
+    const changedIndex=match.rounds.findIndex(item=>item.id===round.id)
+    if(sequencedTeamMode(match)){
+      for(let index=changedIndex+1;index<match.rounds.length;index++){
+        if(match.rounds[index].recorded===false)continue
+        const before=activeTeamPlayers(match,match.rounds.slice(0,index)),after=activeTeamPlayers(next,next.rounds.slice(0,index))
+        if(match.competitors.some(side=>before[side.id]?.playerId!==after[side.id]?.playerId))return '修改会改变后续已记录小局的上场选手。请保留原成绩，或重新开始本大局后按正确顺序录入。'
+      }
+    }
+    setScrollVersion(value=>value+1)
     const result=evaluateGrandRound({...next,rounds:next.rounds.filter(item=>item.recorded!==false)})
     if(result.finished&&next.rounds.every(item=>item.recorded!==false)){
       const finalScores=matchScores(next)
@@ -119,7 +134,7 @@ export function MatchPage({ data, update }: { data: AppData; update: (fn: (d: Ap
     <div className="match-guide"><span><b>1</b> 从本大局图池选图</span><i>→</i><span><b>2</b> 录入对应玩法成绩</span><i>→</i><span><b>3</b> 达成条件后自动结算大分</span></div>
     {match.completedGrandRounds.length>0&&<div className="grand-history">{match.completedGrandRounds.map((grand,index)=><div key={grand.id}><span>第 {index+1} 大局</span><strong>{displayModeName(grand.modeId,grand.modeParams||{})}</strong><small>{match.competitors.map(c=>`${c.name} ${grand.finalScores[c.id]||0}`).join(' : ')}</small></div>)}</div>}
     <div className="rounds-header"><div><span className="eyebrow">SMALL ROUNDS</span><h2>当前大局 · 小局战绩</h2></div><p>共 {match.rounds.length} 小局 · 当前大局总分由小局比分累计</p></div>
-    {match.rounds.length>0&&<div className="round-scroll" ref={roundScrollRef}>{match.rounds.map((round,index)=>{const track=data.tracks.find(x=>x.id===round.trackId);return <button className={`round-card ${match.activeRound===index?'active':''}`} key={round.id} onClick={()=>{patch({activeRound:index});setEditingRound(round)}}><div className="round-image"><SmartImage src={track?.coverVertical||track?.coverHorizontal}/><span className="round-number">小局 {String(index+1).padStart(2,'0')}</span><div className="round-overlay"><span>{track?.star||0} ★</span><strong>{track?.name||'未知赛道'}</strong></div></div>{round.recorded===false?<div className="round-awaiting">待录入本局成绩</div>:<RoundScoreSummary match={match} round={round} roundIndex={index}/>}</button>})}{!pendingRound&&<button className="round-add" onClick={chooseNextTrack}><span><Plus/></span><strong>{missingFirstRanking?'补录首局排名':forcedNextTrack()?'开始预选加赛':'添加下一小局'}</strong><small>{forcedNextTrack()?'使用全速对决预选赛道':'从本大局图池选择赛道'}</small></button>}</div>}
+    {match.rounds.length>0&&<div className="round-scroll" ref={roundScrollRef}>{match.rounds.map((round,index)=>{const track=data.tracks.find(x=>x.id===round.trackId);return <button className={`round-card ${match.activeRound===index?'active':''}`} key={round.id} onClick={()=>{patch({activeRound:index});setEditingRound(round)}}><div className="round-image"><SmartImage src={track?.coverVertical||track?.coverHorizontal}/><span className="round-number">小局 {String(index+1).padStart(2,'0')}</span><div className="round-overlay"><span>{track?.star||0} ★</span><strong>{track?.name||'未知赛道'}</strong></div></div>{round.recorded===false?<div className="round-awaiting">待录入本局成绩{(sequencedTeamMode(match)||match.modeId==='多人混战滴血赛')&&match.competitors.map(side=><span className="pending-player" key={side.id}>{side.name}：{sequencedTeamMode(match)?activeRoundPlayer(match,side,index)?.name||'已淘汰':roundSideName(match,side)}</span>)}</div>:<RoundScoreSummary match={match} round={round} roundIndex={index}/>}</button>})}{!pendingRound&&<button className="round-add" onClick={chooseNextTrack}><span><Plus/></span><strong>{missingFirstRanking?'补录首局排名':forcedNextTrack()?'开始预选加赛':'添加下一小局'}</strong><small>{forcedNextTrack()?'使用全速对决预选赛道':'从本大局图池选择赛道'}</small></button>}</div>}
     {!match.rounds.length&&<div className="match-empty"><div className="flag-orbit"><Flag/></div><h2>本大局还没有小局</h2><p>先从设置好的地图池添加赛道；录入成绩后会自动判断大局是否结束。</p><button className="btn primary" onClick={chooseNextTrack}><Dices size={17}/> 添加第一小局</button></div>}
     {settings&&<MatchSettings data={data} match={match} onSave={applySettings} onClose={()=>setSettings(false)}/>}
     {picking&&<TrackPicker data={data} match={match} onPick={addRound} onClose={()=>setPicking(false)}/>} {editingRound&&<RoundEditor data={data} round={editingRound} match={match} save={updateRound} onClose={()=>setEditingRound(null)}/>}
@@ -203,7 +218,8 @@ function RoundScoreSummary({match,round,roundIndex}:{match:MatchState;round:Roun
   return <div className={`round-scores score-${kind}`}>{match.competitors.map(side=>{
     const value=round.scores[side.id]||0
     const cumulative=through.reduce((sum,item)=>sum+(item.scores[side.id]||0),0)
-    const players=isTeamMode(match.modeId)?roundPlayers(match,side):[]
+    const active=sequencedTeamMode(match)?activeRoundPlayer(match,side,roundIndex):undefined
+    const players=sequencedTeamMode(match)?(active?[active]:[]):isTeamMode(match.modeId)?roundPlayers(match,side):[]
     const currentTime=players.length?players.reduce((sum,p)=>sum+(round.playerTimes?.[playerKey(side.id,p)]||0),0):(round.playerTimes?.[side.id]||0)
     const remaining=rosterSize(match)*(match.modeParams.n||5)+cumulative
     return <div className="round-side-summary" key={side.id}><span><i style={{background:side.color}}/>{roundSideName(match,side)}</span><span className="round-points">
@@ -211,7 +227,7 @@ function RoundScoreSummary({match,round,roundIndex}:{match:MatchState;round:Roun
       {kind==='points'&&<><strong className={value>0?'positive':''}>{value>0?'+':''}{value}</strong><small>累计 {cumulative}</small></>}
       {kind==='blood'&&<><strong className="negative">{value||0}</strong><small>剩余 {remaining}</small></>}
       {kind==='time'&&<><strong>{formatTime(currentTime)}</strong><small>胜场 {cumulative}</small></>}
-    </span>{players.length>0&&<div className="round-player-lines">{players.map(player=>{const key=playerKey(side.id,player);const playerValue=round.playerScores?.[key]||0;const playerRemaining=(match.modeParams.n||5)+through.reduce((sum,item)=>sum+(item.playerScores?.[key]||0),0);return <small key={player.id}><b>{player.name}</b>{kind==='time'?formatTime(round.playerTimes?.[key]||0):kind==='blood'?`剩余 ${playerRemaining}`:`${playerValue>0?'+':''}${playerValue}`}</small>})}</div>}</div>
+    </span>{players.length>0&&<div className="round-player-lines">{players.map(player=>{const key=playerKey(side.id,player);const playerValue=round.playerScores?.[key]||0;const deduction=Object.hasOwn(round.playerScores||{},key)?playerValue:round.scores[side.id]||0;const playerRemaining=active?.health!==undefined?active.health+deduction:(match.modeParams.n||5)+through.reduce((sum,item)=>sum+(item.playerScores?.[key]||0),0);return <small key={player.id}><b>{player.name}</b>{kind==='time'?formatTime(round.playerTimes?.[key]||0):kind==='blood'?`剩余 ${Math.max(0,playerRemaining)}`:sequencedTeamMode(match)?'本局上场':`${playerValue>0?'+':''}${playerValue}`}</small>})}</div>}</div>
   })}</div>
 }
 
@@ -249,7 +265,7 @@ function MatchEditor({data,match,onConfirm}:{data:AppData;match:MatchState;onCon
     {params.length>0&&<div className="mode-params"><div><strong>玩法参数</strong><span>填写本玩法需要的数值</span></div><div>{params.map(key=><label key={key}>{paramLabels[key]}<input type="number" min="1" value={draft.modeParams[key]||1} onChange={e=>{const value=Math.max(1,Number(e.target.value)||1);setDraft(current=>({...current,modeParams:{...current.modeParams,[key]:value},competitors:key==='k'?resizeRosters(current.competitors,value):current.competitors}))}}/></label>)}</div></div>}
     <MatchPoolEditor tracks={data.tracks} filter={draft.trackPool} onChange={trackPool=>setDraft({...draft,trackPool})}/>
     {options.length>0&&<section className="special-rules-editor"><div className="form-row-title"><div><strong>特殊玩法</strong><span>赛道 BP 和全速对决会在开始大局后进入独立页面流程</span></div></div><div className="special-rule-cards">{options.map(option=><button type="button" key={option} className={draft.specialRules.includes(option)?'active':''} onClick={()=>toggleSpecial(option)}><span>{draft.specialRules.includes(option)&&<Check size={14}/>}</span><strong>{option}</strong><small>{specialDescriptions[option]}</small></button>)}</div>{(draft.specialRules.includes('鏖战')||draft.specialRules.includes('巅峰鏖战'))&&<label className="special-number">鏖战封顶分数<input type="number" min={draft.modeParams.n||1} value={draft.specialParams.overtimeCap||((draft.modeParams.n||1)+3)} onChange={e=>setDraft({...draft,specialParams:{...draft.specialParams,overtimeCap:Math.max(draft.modeParams.n||1,Number(e.target.value)||1)}})}/></label>}{draft.specialRules.includes('全速对决')&&<label className="special-number">触发最大分差 h<input type="number" min="0" value={draft.specialParams.fullSpeedGap??3} onChange={e=>setDraft({...draft,specialParams:{...draft.specialParams,fullSpeedGap:Math.max(0,Number(e.target.value)||0)}})}/></label>}</section>}
-    <div className="form-row-title"><div><strong>本大局参赛名称</strong><span>队伍和大分保持不变，每大局可调整上场选手</span></div></div><div className="participant-name-options"><button type="button" className={draft.useTeamNames?'active':''} onClick={()=>setDraft({...draft,useTeamNames:true})}>直接使用队伍名称</button><button type="button" className={!draft.useTeamNames?'active':''} onClick={()=>setDraft({...draft,useTeamNames:false})}>设置本大局选手名称</button></div><div className="round-participant-list">{draft.competitors.map(c=><div key={c.id} className="round-participant"><Avatar competitor={c}/><div><strong>{c.name}</strong>{draft.useTeamNames?<small>{isTeamMode(draft.modeId)&&rosterSize(draft)>1?`队员按 ${c.name} 1、${c.name} 2 等显示`: '直接使用队伍名称'}</small>:<div className="round-player-inputs">{c.players?.map((player,index)=><label key={player.id}><span>{isTeamMode(draft.modeId)?`选手 ${index+1}`:'选手名称'}</span><input value={player.name} onChange={e=>patchPlayer(c.id,player.id,e.target.value)} placeholder="输入选手名称"/></label>)}</div>}</div></div>)}</div>
+    <div className="form-row-title"><div><strong>本大局参赛名称</strong><span>{sequencedTeamMode(draft)?"队伍和大分保持不变；选手填写顺序即出场顺序":"队伍和大分保持不变，每大局可调整上场选手"}</span></div></div><div className="participant-name-options"><button type="button" className={draft.useTeamNames?'active':''} onClick={()=>setDraft({...draft,useTeamNames:true})}>直接使用队伍名称</button><button type="button" className={!draft.useTeamNames?'active':''} onClick={()=>setDraft({...draft,useTeamNames:false})}>设置本大局选手名称</button></div><div className="round-participant-list">{draft.competitors.map(c=><div key={c.id} className="round-participant"><Avatar competitor={c}/><div><strong>{c.name}</strong>{draft.useTeamNames?<small>{isTeamMode(draft.modeId)&&rosterSize(draft)>1?`队员按 ${c.name} 1、${c.name} 2 等显示`: '直接使用队伍名称'}</small>:<div className="round-player-inputs">{c.players?.map((player,index)=><label key={player.id}><span>{isTeamMode(draft.modeId)?`选手 ${index+1}`:'选手名称'}</span><input value={player.name} onChange={e=>patchPlayer(c.id,player.id,e.target.value)} placeholder="输入选手名称"/></label>)}</div>}</div></div>)}</div>
     <button className="btn primary confirm-match" disabled={invalid} onClick={()=>onConfirm(draft)}><Check size={16}/> {needsSpecialTrackFlow(draft)?'进入赛前选图流程':`开始第 ${draft.completedGrandRounds.length+1} 大局`}</button>
   </div>
 }
@@ -272,30 +288,24 @@ function TrackPicker({data,match,onPick,onClose}:{data:AppData;match:MatchState;
   return <Modal title="选择本局赛道" onClose={onClose} wide><div className="picker-head"><p>{authority&&<>选图权：<strong>{authority}</strong><br/></>}{poolName(match.trackPool)} · 当前可选 {candidates.length} 张{overtime?' · 巅峰鏖战仅限五星及以上':''}</p><button className="btn primary" disabled={!candidates.length} onClick={random}><Dices size={16}/> 从本大局图池随机</button></div><TrackSelector tracks={candidates} onSelect={track=>onPick(track.id)}/>{randomTrack&&<TrackConfirmation track={randomTrack} onCancel={()=>setRandomTrack(null)} onConfirm={()=>{onPick(randomTrack.id);setRandomTrack(null)}}/>}</Modal>
 }
 
-function RoundEditor({data,round,match,save,onClose}:{data:AppData;round:RoundResult;match:MatchState;save:(r:RoundResult)=>void;onClose:()=>void}){
+function RoundEditor({data,round,match,save,onClose}:{data:AppData;round:RoundResult;match:MatchState;save:(r:RoundResult)=>string|undefined;onClose:()=>void}){
   const kind=scorePanel(match.modeId),teamMode=isTeamMode(match.modeId)
   const carLimit=match.specialRules.includes('赛车限制')
   const [draft,setDraft]=useState<RoundResult>(()=>({...round,playerScores:round.playerScores||{},playerTimes:round.playerTimes||{},winnerIds:round.winnerIds||[],carIds:round.carIds||{}}))
+  const [saveError,setSaveError]=useState('')
   const roundIndex=match.rounds.findIndex(item=>item.id===round.id)
   const previous=match.rounds.slice(0,Math.max(0,roundIndex))
   const isSpeedRound=match.specialRules.includes('全速对决')&&roundIndex>=(match.modeParams.t||1)
   const segmentStart=isSpeedRound?(match.modeParams.t||1):0
   const segmentEnd=isSpeedRound?match.rounds.length:match.specialRules.includes('全速对决')?(match.modeParams.t||1):match.rounds.length
   const otherCarRounds=match.rounds.slice(segmentStart,segmentEnd).filter(item=>item.id!==round.id)
-  const relayBest=Math.max(0,...Object.values(matchScores({...match,rounds:previous})))
-  const relayFirst=Math.floor((match.modeParams.n||1)/(match.modeParams.k||2))+1
-  const relaySecond=(match.modeParams.n||1)-Math.floor((match.modeParams.n||1)/(match.modeParams.k||2))
+  const sequential=sequencedTeamMode(match)
+  const active=activeTeamPlayers(match,previous)
+  const participants=Object.fromEntries(match.competitors.map(side=>[side.id,activeRoundPlayer(match,side,roundIndex)]))
   const carParticipants=match.competitors.flatMap(side=>{
     if(!teamMode)return [{key:side.id,name:roundSideName(match,side)}]
     const players=roundPlayers(match,side)
-    if(match.modeId==='kvk接力抢n'){
-      const index=Math.min(players.length-1,relayBest>=relayFirst?(players.length>=3&&relayBest>=relaySecond?2:1):0)
-      return players[index]?[{key:playerKey(side.id,players[index]),name:`${side.name} · ${players[index].name}`}]:[]
-    }
-    if(match.modeId==='kvk组队滴血赛'){
-      const active=players.find(player=>(match.modeParams.n||5)+previous.reduce((sum,item)=>sum+(item.playerScores?.[playerKey(side.id,player)]||0),0)>0)
-      return active?[{key:playerKey(side.id,active),name:`${side.name} · ${active.name}`}]:[]
-    }
+    if(sequential){const player=participants[side.id];return player?[{key:playerKey(side.id,player),name:`${side.name} · ${player.name}`}]:[]}
     return players.map(player=>({key:playerKey(side.id,player),name:`${side.name} · ${player.name}`}))
   })
   const carReady=!carLimit||carParticipants.every(player=>draft.carIds?.[player.key])
@@ -311,31 +321,39 @@ function RoundEditor({data,round,match,save,onClose}:{data:AppData;round:RoundRe
   const resolvedFirst=firstCandidates.length===1?firstCandidates[0]:(needsRanking&&resolvedRanking&&firstCandidates.includes(resolvedRanking[0])?resolvedRanking[0]:draft.firstPlaceId&&firstCandidates.includes(draft.firstPlaceId)?draft.firstPlaceId:undefined)
   const firstPlaceRequired=teamMode&&kind==='points'&&!resolvedFirst
   const rankingReady=!needsRanking||Boolean(resolvedRanking)&&(kind!=='outcome'||Boolean(draft.winnerIds?.length))
+  const bloodLosses=match.modeId==='kvk组队滴血赛'?match.competitors.map(side=>{const player=participants[side.id];return player?Math.abs(draft.playerScores?.[playerKey(side.id,player)]||0):0}):[]
+  const inactiveBloodLoss=match.modeId==='kvk组队滴血赛'&&match.competitors.some(side=>roundPlayers(match,side).some(player=>player.id!==participants[side.id]?.id&&(draft.playerScores?.[playerKey(side.id,player)]||0)!==0))
+  const sequenceReady=!sequential||match.competitors.every(side=>Boolean(participants[side.id]))
+  const bloodReady=match.modeId!=='kvk组队滴血赛'||(sequenceReady&&!inactiveBloodLoss&&bloodLosses.filter(value=>value>0).length===1&&match.competitors.every((side,index)=>bloodLosses[index]<=(active[side.id]?.health||0)))
   const setWinner=(sideId:string)=>setDraft(current=>({...current,winnerIds:[sideId],scores:Object.fromEntries(match.competitors.map(side=>[side.id,side.id===sideId?1:0]))}))
   const setSideScore=(sideId:string,value:number)=>setDraft(current=>({...current,scores:{...current.scores,[sideId]:kind==='blood'?-Math.abs(value):value}}))
   const setPlayerScore=(sideId:string,player:MatchPlayer,value:number)=>setDraft(current=>({...current,playerScores:{...current.playerScores,[playerKey(sideId,player)]:kind==='blood'?-Math.abs(value):value}}))
   const setTime=(key:string,value:number)=>setDraft(current=>({...current,playerTimes:{...current.playerTimes,[key]:Math.max(0,value)}}))
+  function finishSave(result:RoundResult){const error=save(result);if(error)setSaveError(error)}
   function commit(){
-    if(!rankingReady||!carReady||firstPlaceRequired)return
+    if(!rankingReady||!carReady||firstPlaceRequired||!bloodReady||!sequenceReady)return
     if(kind==='outcome'&&needsRanking&&draft.winnerIds?.[0]!==resolvedRanking?.[0])return
-    const result:RoundResult={...draft,...(needsRanking?{ranking:resolvedRanking||undefined}:{}),...(teamMode&&kind==='points'?{firstPlaceId:resolvedFirst}:{}),scores:calculatedScores}
-    if(kind==='outcome'){if(!draft.winnerIds?.length)return;save(result);return}
-    if((kind==='points'||kind==='blood')&&teamMode){save(result);return}
+    const result:RoundResult={...draft,...(needsRanking?{ranking:resolvedRanking||undefined}:{}),...(teamMode&&kind==='points'?{firstPlaceId:resolvedFirst}:{}),...(sequential?{activePlayerIds:Object.fromEntries(match.competitors.flatMap(side=>participants[side.id]?[[side.id,participants[side.id]!.id]]:[]))}:{}),scores:calculatedScores}
+    if(kind==='outcome'){if(!draft.winnerIds?.length)return;finishSave(result);return}
+    if((kind==='points'||kind==='blood')&&teamMode){finishSave(result);return}
     if(kind==='time'){
       const sideTimes=Object.fromEntries(match.competitors.map(side=>[side.id,teamMode?(side.players||[]).reduce((sum,player)=>sum+(draft.playerTimes?.[playerKey(side.id,player)]||0),0):(draft.playerTimes?.[side.id]||0)]))
       const valid=Object.values(sideTimes).filter(value=>value>0);if(valid.length!==match.competitors.length)return
       const best=Math.min(...valid),winnerIds=match.competitors.filter(side=>sideTimes[side.id]===best).map(side=>side.id)
-      save({...draft,winnerIds,scores:Object.fromEntries(match.competitors.map(side=>[side.id,winnerIds.includes(side.id)?1:0]))});return
+      finishSave({...draft,winnerIds,scores:Object.fromEntries(match.competitors.map(side=>[side.id,winnerIds.includes(side.id)?1:0]))});return
     }
-    save(result)
+    finishSave(result)
   }
   const title=kind==='outcome'?'选择本小局胜方':kind==='points'?'录入本小局积分':kind==='blood'?'录入本小局扣血':'录入本小局成绩'
   return <Modal title={title} onClose={onClose} wide={teamMode}><div className="stack-form mode-round-editor">
-    {kind==='outcome'?<><p className="form-help">只需选择本小局获胜方，系统会自动记录胜负关系并累计小分。</p><div className="winner-options">{match.competitors.map(side=><button key={side.id} className={draft.winnerIds?.includes(side.id)?'active':''} onClick={()=>setWinner(side.id)}><Avatar competitor={side}/><span><strong>{roundSideName(match,side)}</strong><small>{draft.winnerIds?.includes(side.id)?'本局获胜':'点击设为胜方'}</small></span>{draft.winnerIds?.includes(side.id)&&<Crown size={18}/>}</button>)}</div></>:<><p className="form-help">{kind==='points'?'逐项填写本局得分，组队模式会自动汇总队伍小分。':kind==='blood'?'填写本局扣除的血量，保存后自动计算每人和每队的剩余血量。':'填写完成时间（秒），组队模式会自动合计时间并判定本局胜方。'}</p><div className="mode-score-groups">{match.competitors.map(side=><section key={side.id} style={{'--team-color':side.color} as React.CSSProperties}><header><Avatar competitor={side}/><strong>{side.name}</strong>{teamMode&&<small>{side.players?.length||0} 名队员</small>}</header><div>{teamMode?roundPlayers(match,side).map(player=>{const key=playerKey(side.id,player),stored=kind==='time'?draft.playerTimes?.[key]||0:draft.playerScores?.[key]||0;const before=(match.modeParams.n||5)+previous.reduce((sum,item)=>sum+(item.playerScores?.[key]||0),0);return <label key={player.id}><span><b>{player.name}</b>{kind==='blood'&&<small>当前 {before} 血</small>}</span><input type="number" min="0" step={kind==='time'?'0.001':'1'} value={kind==='blood'?Math.abs(stored):stored} onChange={e=>kind==='time'?setTime(key,Number(e.target.value)):setPlayerScore(side.id,player,Number(e.target.value))}/><em>{kind==='time'?'秒':kind==='blood'?'扣血':'分'}</em></label>}):<label><span><b>{roundSideName(match,side)}</b>{kind==='blood'&&<small>当前 {(match.modeParams.n||5)+previous.reduce((sum,item)=>sum+(item.scores[side.id]||0),0)} 血</small>}</span><input type="number" min="0" step={kind==='time'?'0.001':'1'} value={kind==='time'?draft.playerTimes?.[side.id]||0:kind==='blood'?Math.abs(draft.scores[side.id]||0):draft.scores[side.id]||0} onChange={e=>kind==='time'?setTime(side.id,Number(e.target.value)):setSideScore(side.id,Number(e.target.value))}/><em>{kind==='time'?'秒':kind==='blood'?'扣血':'分'}</em></label>}</div></section>)}</div></>}
+    {sequential&&<div className="active-players"><strong>本局上场选手</strong><div>{match.competitors.map(side=><span key={side.id}><small>{side.name}</small><b>{participants[side.id]?.name||'已淘汰'}</b>{match.modeId==='kvk组队滴血赛'&&<em>{active[side.id]?.health??0} 血</em>}</span>)}</div><p>{match.modeId==='kvk接力抢n'?'按设置的顺序接力；一方达到换棒分数后，双方同时换下一位。':'每队按设置顺序出场，当前选手血量耗尽后自动换下一位。'}</p></div>}
+    {kind==='outcome'?<><p className="form-help">只需选择本小局获胜方，系统会自动记录胜负关系并累计小分。</p><div className="winner-options">{match.competitors.map(side=><button key={side.id} className={draft.winnerIds?.includes(side.id)?'active':''} onClick={()=>setWinner(side.id)}><Avatar competitor={side}/><span><strong>{roundSideName(match,side)}</strong><small>{sequential?`上场：${participants[side.id]?.name||"—"} · `:""}{draft.winnerIds?.includes(side.id)?'本局获胜':'点击设为胜方'}</small></span>{draft.winnerIds?.includes(side.id)&&<Crown size={18}/>}</button>)}</div></>:<><p className="form-help">{kind==='points'?'逐项填写本局得分，组队模式会自动汇总队伍小分。':kind==='blood'?(sequential?'只为本局败方的上场选手扣血；血量耗尽后自动换下一位。':'填写本局扣除的血量，保存后自动计算每人和每队的剩余血量。'):'填写完成时间（秒），组队模式会自动合计时间并判定本局胜方。'}</p><div className="mode-score-groups">{match.competitors.map(side=><section key={side.id} style={{'--team-color':side.color} as React.CSSProperties}><header><Avatar competitor={side}/><strong>{side.name}</strong>{teamMode&&<small>{side.players?.length||0} 名队员</small>}</header><div>{teamMode?(match.modeId==='kvk组队滴血赛'?(participants[side.id]?[participants[side.id]!]:[]):roundPlayers(match,side)).map(player=>{const key=playerKey(side.id,player),stored=kind==='time'?draft.playerTimes?.[key]||0:draft.playerScores?.[key]||0;const before=match.modeId==='kvk组队滴血赛'?(active[side.id]?.health||0):(match.modeParams.n||5)+previous.reduce((sum,item)=>sum+(item.playerScores?.[key]||0),0);return <label key={player.id}><span><b>{player.name}</b>{kind==='blood'&&<small>当前 {before} 血</small>}</span><input type="number" min="0" step={kind==='time'?'0.001':'1'} value={kind==='blood'?Math.abs(stored):stored} onChange={e=>kind==='time'?setTime(key,Number(e.target.value)):setPlayerScore(side.id,player,Number(e.target.value))}/><em>{kind==='time'?'秒':kind==='blood'?'扣血':'分'}</em></label>}):<label><span><b>{roundSideName(match,side)}</b>{kind==='blood'&&<small>当前 {(match.modeParams.n||5)+previous.reduce((sum,item)=>sum+(item.scores[side.id]||0),0)} 血</small>}</span><input type="number" min="0" step={kind==='time'?'0.001':'1'} value={kind==='time'?draft.playerTimes?.[side.id]||0:kind==='blood'?Math.abs(draft.scores[side.id]||0):draft.scores[side.id]||0} onChange={e=>kind==='time'?setTime(side.id,Number(e.target.value)):setSideScore(side.id,Number(e.target.value))}/><em>{kind==='time'?'秒':kind==='blood'?'扣血':'分'}</em></label>}</div></section>)}</div></>}
     {needsRanking&&!rankingLocked&&!autoRanking&&<div className="first-round-ranking"><strong>{roundIndex===0?"首局排名":"本局排名"}</strong><p>选手最高分相同时，请按实际冲线顺序点击同分参赛方；其他名次由成绩自动计算。</p><div>{match.competitors.map(side=>{const position=(resolvedRanking||ranking).indexOf(side.id),tied=competitorIds.filter(id=>rankingScores[id]===rankingScores[side.id]).length>1;return <button type="button" key={side.id} disabled={!tied||ranking.includes(side.id)} className={position>=0?'active':''} onClick={()=>setDraft({...draft,ranking:[...ranking,side.id]})}><span>{position>=0?(resolvedRanking?`第 ${position+1} 名`:`已选 ${position+1}`):tied?'同分待排序':'自动排名'}</span><strong>{roundSideName(match,side)}</strong></button>})}</div>{ranking.length>0&&<button type="button" className="text-btn" onClick={()=>setDraft({...draft,ranking:[]})}>重新选择同分顺序</button>}</div>}
     {teamMode&&kind==='points'&&firstCandidates.length>1&&!needsRanking&&<div className="round-first-place"><strong>最高分选手并列</strong><p>请确认实际第一名所属队伍，以确定选图权和全速对决顺序。</p><div>{match.competitors.filter(side=>firstCandidates.includes(side.id)).map(side=><button type="button" key={side.id} className={resolvedFirst===side.id?'active':''} onClick={()=>setDraft({...draft,firstPlaceId:side.id})}>{side.name}</button>)}</div></div>}
     {carLimit&&<div className="round-car-usage"><div><strong>赛车限制</strong><span>每位上场选手的赛车只能使用一次{isSpeedRound?'；全速对决已重置使用记录':''}</span></div>{carParticipants.map(player=>{const used=new Set(otherCarRounds.map(item=>item.carIds?.[player.key]).filter(Boolean));const available=data.cars.filter(car=>!used.has(car.id)||draft.carIds?.[player.key]===car.id);return <label key={player.key}><span>{player.name}</span><select value={draft.carIds?.[player.key]||''} onChange={e=>setDraft({...draft,carIds:{...draft.carIds,[player.key]:e.target.value}})}><option value="">选择本局赛车</option>{available.map(car=><option key={car.id} value={car.id}>{car.grade} · {car.name}</option>)}</select><small>已使用 {used.size} 辆</small></label>})}</div>}
-    <label>备注（可选）<textarea rows={2} value={draft.notes} onChange={e=>setDraft({...draft,notes:e.target.value})} placeholder="排名、判罚或特殊情况…"/></label><button className="btn primary full" disabled={!carReady||!rankingReady||firstPlaceRequired||(kind==='outcome'&&needsRanking&&resolvedRanking?.[0]!==draft.winnerIds?.[0])} onClick={commit}><Save size={16}/> 保存本小局</button>
+    {match.modeId==='kvk组队滴血赛'&&!bloodReady&&<p className="form-help">{inactiveBloodLoss?'这条旧记录包含未上场队员的扣血，无法按顺序安全修改。':'请只填写一方上场选手的扣血，且不能超过其当前血量。'}</p>}
+    {saveError&&<p className="field-error" role="alert">{saveError}</p>}
+    <label>备注（可选）<textarea rows={2} value={draft.notes} onChange={e=>setDraft({...draft,notes:e.target.value})} placeholder="排名、判罚或特殊情况…"/></label><button className="btn primary full" disabled={!carReady||!rankingReady||firstPlaceRequired||!bloodReady||!sequenceReady||(kind==='outcome'&&needsRanking&&resolvedRanking?.[0]!==draft.winnerIds?.[0])} onClick={commit}><Save size={16}/> 保存本小局</button>
   </div></Modal>
 }
 

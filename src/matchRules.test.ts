@@ -1,12 +1,41 @@
 import { describe, expect, it } from 'vitest'
 import { initialData } from './data/seed'
-import { bestPlayerScores, bpFeatures, displayModeName, evaluateGrandRound, firstPlaceCandidates, kingTracksInFirstRoundOrder, nextFullSpeedTrack, normalizeBpRules, pickAuthority, rankRoundScores, tracksInPool, trailingSide } from './matchRules'
+import { activeTeamPlayers, bestPlayerScores, bpFeatures, displayModeName, evaluateGrandRound, firstPlaceCandidates, kingTracksInFirstRoundOrder, nextFullSpeedTrack, normalizeBpRules, pickAuthority, rankRoundScores, tracksInPool, trailingSide } from './matchRules'
 import type { MatchState, RoundResult, Track } from './types'
 
 const round=(scores:Record<string,number>,extra:Partial<RoundResult>={}):RoundResult=>({id:crypto.randomUUID(),trackId:'track',scores,notes:'',...extra})
 const makeMatch=(patch:Partial<MatchState>={}):MatchState=>({...structuredClone(initialData.match),configured:true,...patch})
 
 describe('grand round automation',()=>{
+  it('switches both relay teams when the leading score reaches the next leg',()=>{
+    const match=makeMatch({modeId:'kvk接力抢n',modeParams:{...initialData.match.modeParams,k:2,n:7},competitors:initialData.match.competitors.map(side=>({...side,players:[{id:`${side.id}-1`,name:'首棒'},{id:`${side.id}-2`,name:'第二棒'}]}))})
+    expect(activeTeamPlayers(match)['team-a']?.playerId).toBe('team-a-1')
+    match.rounds=[round({'team-a':3,'team-b':1})]
+    expect(activeTeamPlayers(match)['team-b']?.playerId).toBe('team-b-1')
+    match.rounds.push(round({'team-a':1,'team-b':0}))
+    expect(activeTeamPlayers(match)['team-a']?.playerId).toBe('team-a-2')
+    expect(activeTeamPlayers(match)['team-b']?.playerId).toBe('team-b-2')
+  })
+  it('advances through all three relay legs at their score thresholds',()=>{
+    const match=makeMatch({modeId:'kvk接力抢n',modeParams:{...initialData.match.modeParams,k:3,n:7},competitors:initialData.match.competitors.map(side=>({...side,players:[1,2,3].map(index=>({id:`${side.id}-${index}`,name:`第${index}棒`}))}))})
+    match.rounds=[round({'team-a':3,'team-b':2})]
+    expect(activeTeamPlayers(match)['team-a']?.playerId).toBe('team-a-2')
+    match.rounds.push(round({'team-a':1,'team-b':2}))
+    expect(activeTeamPlayers(match)['team-b']?.playerId).toBe('team-b-2')
+    match.rounds.push(round({'team-a':1,'team-b':0}))
+    expect(activeTeamPlayers(match)['team-a']?.playerId).toBe('team-a-3')
+    expect(activeTeamPlayers(match)['team-b']?.playerId).toBe('team-b-3')
+  })
+  it('advances blood competitors separately only after their active player loses all health',()=>{
+    const match=makeMatch({modeId:'kvk组队滴血赛',modeParams:{...initialData.match.modeParams,k:2,n:2},competitors:initialData.match.competitors.map(side=>({...side,players:[{id:`${side.id}-1`,name:'第一位'},{id:`${side.id}-2`,name:'第二位'}]}))})
+    match.rounds=[round({'team-a':-1,'team-b':0},{playerScores:{'team-a:team-a-1':-1}})]
+    expect(activeTeamPlayers(match)['team-a']).toMatchObject({playerId:'team-a-1',health:1})
+    match.rounds.push(round({'team-a':-1,'team-b':0},{playerScores:{'team-a:team-a-1':-1}}))
+    expect(activeTeamPlayers(match)['team-a']).toMatchObject({playerId:'team-a-2',health:2})
+    expect(activeTeamPlayers(match)['team-b']).toMatchObject({playerId:'team-b-1',health:2})
+    match.rounds.push(round({'team-a':0,'team-b':-2}))
+    expect(activeTeamPlayers(match)['team-b']).toMatchObject({playerId:'team-b-2',health:2})
+  })
   it('finishes a grab-n mode as soon as a side reaches n',()=>{
     const match=makeMatch({modeParams:{...initialData.match.modeParams,n:2},rounds:[round({'team-a':1,'team-b':0}),round({'team-a':1,'team-b':0})]})
     expect(evaluateGrandRound(match)).toMatchObject({finished:true,winnerIds:['team-a']})
