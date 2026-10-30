@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { initialData } from './data/seed'
-import { evaluateGrandRound, kingTracksInFirstRoundOrder, tracksInPool } from './matchRules'
+import { displayModeName, evaluateGrandRound, kingTracksInFirstRoundOrder, rankRoundScores, tracksInPool } from './matchRules'
 import type { MatchState, RoundResult, Track } from './types'
 
 const round=(scores:Record<string,number>,extra:Partial<RoundResult>={}):RoundResult=>({id:crypto.randomUUID(),trackId:'track',scores,notes:'',...extra})
@@ -43,6 +43,17 @@ describe('grand round automation',()=>{
 })
 
 describe('match track pool',()=>{
+  it('ranks scores automatically and asks for order only for equal scores',()=>{
+    expect(rankRoundScores(['a','b'],{a:7,b:10})).toEqual(['b','a'])
+    expect(rankRoundScores(['a','b'],{a:10,b:10})).toBeNull()
+    expect(rankRoundScores(['a','b'],{a:10,b:10},['b','a'])).toEqual(['b','a'])
+    expect(rankRoundScores(['a','b','c'],{a:10,b:10,c:4},['b','a'])).toEqual(['b','a','c'])
+  })
+  it('shows actual matchup and target without the number of rounds',()=>{
+    expect(displayModeName('kvk组队积分赛',{k:2,t:5})).toBe('2v2组队积分赛')
+    expect(displayModeName('kvk组队抢n',{k:3,n:7})).toBe('3v3组队抢7')
+    expect(displayModeName('1v1单挑抢n',{n:5})).toBe('1v1单挑抢5')
+  })
   it('orders each side’s king track by the recorded first-round ranking',()=>{
     const match=makeMatch({specialRules:['赛道BP'],specialTrackIds:{'bp:team-a:king':['king-a'],'bp:team-b:king':['king-b']},rounds:[round({'team-a':3,'team-b':5},{ranking:['team-b','team-a']})]})
     expect(kingTracksInFirstRoundOrder(match)).toEqual(['king-b','king-a'])

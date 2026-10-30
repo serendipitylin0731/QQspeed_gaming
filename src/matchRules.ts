@@ -7,6 +7,13 @@ export interface GrandEvaluation {
   phase: 'playing'|'overtime'|'finished'
 }
 
+export function displayModeName(modeId:string,params:Record<string,number>):string{
+  const size=params.k
+  const name=modeId.replace(/^kvk/,size?`${size}v${size}`:'kvk').replace(/n/g,params.n?String(params.n):'n')
+  const suffix=modeId==='kvk组队计时赛'&&params.n?` · 抢${params.n}分`:modeId.includes('滴血赛')&&params.n?` · ${params.n}血`:''
+  return name+suffix
+}
+
 export function tracksInPool(tracks:Track[],filter:WheelFilter){
   return tracks.filter(track=>filter.stars.includes(track.star)
     &&(filter.base==='all'||filter.base==='custom'&&filter.customTrackIds.includes(track.id)||filter.base!=='custom'&&track.pools[filter.base])
@@ -21,6 +28,20 @@ export function poolName(filter:WheelFilter){
 
 export function matchScores(match:MatchState,rounds=match.rounds){
   return Object.fromEntries(match.competitors.map(side=>[side.id,rounds.reduce((sum,round)=>sum+(round.scores[side.id]||0),0)]))
+}
+
+export function rankRoundScores(competitorIds:string[],scores:Record<string,number>,tieOrder:string[]=[]):string[]|null{
+  if(competitorIds.some(id=>!Number.isFinite(scores[id])))return null
+  const groups=new Map<number,string[]>()
+  for(const id of competitorIds){const score=scores[id];groups.set(score,[...(groups.get(score)||[]),id])}
+  const result:string[]=[]
+  for(const [,ids] of [...groups].sort((a,b)=>b[0]-a[0])){
+    if(ids.length===1){result.push(ids[0]);continue}
+    const ordered=tieOrder.filter(id=>ids.includes(id))
+    if(ordered.length!==ids.length||new Set(ordered).size!==ids.length)return null
+    result.push(...ordered)
+  }
+  return result
 }
 
 export function kingTracksInFirstRoundOrder(match:MatchState):string[]{
