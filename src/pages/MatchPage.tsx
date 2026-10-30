@@ -4,25 +4,25 @@ import { Modal } from '../components/Modal'
 import { SmartImage } from '../components/SmartImage'
 import { TrackConfirmation, TrackSelector } from '../components/TrackSelector'
 import { initialData } from '../data/seed'
-import { bestPlayerScores, displayModeName, evaluateGrandRound, firstPlaceCandidates, kingTracksInFirstRoundOrder, matchScores, nextFullSpeedTrack, pickAuthority, poolName, rankRoundScores, tracksInPool, trailingSide } from '../matchRules'
+import { bestPlayerScores, bpFeatures, displayModeName, evaluateGrandRound, firstPlaceCandidates, kingTracksInFirstRoundOrder, matchScores, nextFullSpeedTrack, normalizeBpRules, pickAuthority, poolName, rankRoundScores, tracksInPool, trailingSide } from '../matchRules'
 import type { AppData, Competitor, MatchPlayer, MatchState, RoundResult, SavedMatch, Track, WheelFilter } from '../types'
 
 const modes=['1v1单挑抢n','1v1绝活单挑赛','计时挑战赛','多人混战滴血赛','多人混战积分赛','多人混战抢n','kvk接力抢n','kvk组队滴血赛','kvk组队积分赛','kvk组队计时赛','kvk组队抢n']
 const colors=['#42a5ff','#ff8a47','#9d6cff','#1ecb9b','#ef6680','#e3bd42']
 const specialOptions:Record<string,string[]>={
-  '1v1单挑抢n':['赛车限制','赛道BP','鏖战','巅峰鏖战'],
-  '多人混战滴血赛':['赛道BP（王图）'],
-  '多人混战积分赛':['赛道BP（王图）','同分加赛'],
-  '多人混战抢n':['赛道BP（王图）'],
-  'kvk接力抢n':['赛道BP（仅禁图）'],
-  'kvk组队积分赛':['赛道BP','全速对决'],
-  'kvk组队抢n':['赛道BP'],
+  '1v1单挑抢n':['赛车限制','赛道BP（王图）','赛道BP（Ban 图）','鏖战','巅峰鏖战'],
+  '多人混战滴血赛':['赛道BP（王图）','赛道BP（Ban 图）'],
+  '多人混战积分赛':['赛道BP（王图）','赛道BP（Ban 图）','同分加赛'],
+  '多人混战抢n':['赛道BP（王图）','赛道BP（Ban 图）'],
+  'kvk接力抢n':['赛道BP（王图）','赛道BP（Ban 图）'],
+  'kvk组队积分赛':['赛道BP（王图）','赛道BP（Ban 图）','全速对决'],
+  'kvk组队抢n':['赛道BP（王图）','赛道BP（Ban 图）'],
 }
 const specialDescriptions:Record<string,string>={
   '赛车限制':'每位选手的赛车只能使用一次；每小局录入赛车后自动排除已使用赛车。',
   '赛道BP':'双方各选一张王图和两张禁用图；每方禁用图中最多一张五星及以上赛道。',
-  '赛道BP（王图）':'每个参赛方选择一张王图，不进行禁图。',
-  '赛道BP（仅禁图）':'双方轮流各 Ban 两张地图，不设置王图；每方最多 Ban 一张五星及以上赛道。',
+  '赛道BP（王图）':'每个参赛方选择一张王图，可独立开启。',
+  '赛道BP（Ban 图）':'参赛方轮流各 Ban 两张地图，可独立开启；每方最多 Ban 一张五星及以上赛道。',
   '鏖战':'达到赛点平分后，必须领先两分；也可以设置封顶分数。',
   '巅峰鏖战':'鏖战触发后只能选择五星及以上赛道，并沿用领先两分与封顶规则。',
   '同分加赛':'规定局数结束仍并列时，继续比赛直到第一名唯一。',
@@ -54,7 +54,7 @@ function displaySideScore(match:MatchState,side:Competitor){
   return total
 }
 function formatTime(seconds:number){if(!Number.isFinite(seconds)||seconds<=0)return '--:--.---';const minutes=Math.floor(seconds/60);return `${String(minutes).padStart(2,'0')}:${(seconds-minutes*60).toFixed(3).padStart(6,'0')}`}
-function needsSpecialTrackFlow(match:MatchState){return match.specialRules.some(rule=>rule.startsWith('赛道BP'))||match.specialRules.includes('全速对决')}
+function needsSpecialTrackFlow(match:MatchState){const bp=bpFeatures(match.specialRules);return bp.king||bp.ban||match.specialRules.includes('全速对决')}
 function fullSpeedTrackIds(match:MatchState){const perSide=match.competitors.flatMap(side=>match.specialTrackIds[`fullSpeed:${side.id}`]||[]);return perSide.length?perSide:match.specialTrackIds.fullSpeed||[]}
 
 function totals(match:MatchState){return roundTotals(match)}
@@ -64,7 +64,7 @@ function scoringStructure(match:MatchState){
     modeId:match.modeId,
     modeParams:match.modeParams,
     trackPool:match.trackPool,
-    specialRules:match.specialRules,
+    specialRules:normalizeBpRules(match.specialRules).sort(),
     specialParams:match.specialParams,
     specialTrackIds:match.specialTrackIds,
     useTeamNames:match.useTeamNames,
@@ -81,7 +81,7 @@ export function MatchPage({ data, update }: { data: AppData; update: (fn: (d: Ap
   const evaluation=useMemo(()=>evaluateGrandRound({...match,rounds:match.rounds.filter(round=>round.recorded!==false)}),[match])
   const lastRound=match.rounds.at(-1)
   const pendingRound=lastRound?.recorded===false?lastRound:undefined
-  const hasBp=match.specialRules.some(rule=>rule==='赛道BP'||rule==='赛道BP（王图）')
+  const hasBp=bpFeatures(match.specialRules).king
   const missingFirstRanking=hasBp&&match.rounds.length>0&&!match.rounds[0].ranking
   const patch=(value:Partial<MatchState>)=>update(d=>({...d,match:{...d.match,...value}}))
   function addRound(trackId:string){const round:RoundResult={id:`round-${Date.now()}`,trackId,scores:Object.fromEntries(match.competitors.map(x=>[x.id,0])),notes:'',recorded:false};patch({rounds:[...match.rounds,round],activeRound:match.rounds.length});setPicking(false);setEditingRound(round)}
@@ -138,15 +138,13 @@ function SpecialSetupFlow({data,match,onPatch,onEdit}:{data:AppData;match:MatchS
   const pool=tracksInPool(data.tracks,match.trackPool)
   const selected=match.specialTrackIds
   const firstId=selected.firstTrack?.[0]
-  const bpRule=match.specialRules.find(rule=>rule.startsWith('赛道BP'))
-  const hasKing=bpRule==='赛道BP'||bpRule==='赛道BP（王图）'
-  const hasBan=bpRule==='赛道BP'||bpRule==='赛道BP（仅禁图）'
+  const {king:hasKing,ban:hasBan}=bpFeatures(match.specialRules)
   const kingSide=hasKing?match.competitors.find(side=>(selected[`bp:${side.id}:king`]?.length||0)<1):undefined
   const banTurns=hasBan?[0,1].flatMap(round=>match.competitors.map(side=>({side,round}))):[]
   const banTurn=banTurns.find(({side,round})=>(selected[`bp:${side.id}:ban`]?.length||0)<=round)
   const blindSide=match.specialRules.includes('全速对决')?match.competitors.find(side=>(selected[`fullSpeed:${side.id}`]?.length||0)<1):undefined
-  const kings=match.competitors.flatMap(side=>selected[`bp:${side.id}:king`]||[])
-  const bans=match.competitors.flatMap(side=>selected[`bp:${side.id}:ban`]||[])
+  const kings=hasKing?match.competitors.flatMap(side=>selected[`bp:${side.id}:king`]||[]):[]
+  const bans=hasBan?match.competitors.flatMap(side=>selected[`bp:${side.id}:ban`]||[]):[]
   const blindIds=match.competitors.flatMap(side=>selected[`fullSpeed:${side.id}`]||[])
   const allDone=Boolean(firstId)&&!kingSide&&!banTurn&&!blindSide
   const duplicateBlind=new Set(blindIds).size!==blindIds.length
@@ -229,13 +227,14 @@ function MatchSetupScreen({data,match,onConfirm}:{data:AppData;match:MatchState;
 function MatchSettings({data,match,onSave,onClose}:{data:AppData;match:MatchState;onSave:(m:MatchState)=>void;onClose:()=>void}){return <Modal title="大局设置" onClose={onClose} wide><MatchEditor data={data} match={match} onConfirm={onSave}/></Modal>}
 
 function MatchEditor({data,match,onConfirm}:{data:AppData;match:MatchState;onConfirm:(m:MatchState)=>void}){
-  const [draft,setDraft]=useState<MatchState>(()=>{const copy=structuredClone(match);copy.competitors=resizeRosters(copy.competitors,rosterSize(copy));return copy})
+  const [draft,setDraft]=useState<MatchState>(()=>{const copy=structuredClone(match);copy.specialRules=normalizeBpRules(copy.specialRules);copy.competitors=resizeRosters(copy.competitors,rosterSize(copy));return copy})
   const patchPlayer=(sideId:string,playerId:string,name:string)=>setDraft({...draft,competitors:draft.competitors.map(side=>side.id===sideId?{...side,players:side.players?.map(player=>player.id===playerId?{...player,name}:player)}:side)})
   const options=[...(specialOptions[draft.modeId]||[])];if(!draft.modeId.includes('计时')&&!options.includes('赛车限制'))options.unshift('赛车限制')
   const toggleSpecial=(option:string)=>setDraft(current=>{
     if(current.specialRules.includes(option)){
       const specialTrackIds={...current.specialTrackIds}
-      if(option.startsWith('赛道BP'))Object.keys(specialTrackIds).filter(key=>key.startsWith('bp:')).forEach(key=>delete specialTrackIds[key])
+      if(option==='赛道BP（王图）')Object.keys(specialTrackIds).filter(key=>key.startsWith('bp:')&&key.endsWith(':king')).forEach(key=>delete specialTrackIds[key])
+      if(option==='赛道BP（Ban 图）')Object.keys(specialTrackIds).filter(key=>key.startsWith('bp:')&&key.endsWith(':ban')).forEach(key=>delete specialTrackIds[key])
       if(option==='全速对决')Object.keys(specialTrackIds).filter(key=>key==='fullSpeed'||key.startsWith('fullSpeed:')).forEach(key=>delete specialTrackIds[key])
       return {...current,specialRules:current.specialRules.filter(x=>x!==option),specialTrackIds}
     }
@@ -263,7 +262,7 @@ function MatchPoolEditor({tracks,filter,onChange}:{tracks:Track[];filter:WheelFi
 
 function TrackPicker({data,match,onPick,onClose}:{data:AppData;match:MatchState;onPick:(id:string)=>void;onClose:()=>void}){
   const [randomTrack,setRandomTrack]=useState<Track|null>(null)
-  const banned=Object.entries(match.specialTrackIds).filter(([key])=>key.endsWith(':ban')).flatMap(([,ids])=>ids)
+  const banned=bpFeatures(match.specialRules).ban?Object.entries(match.specialTrackIds).filter(([key])=>key.startsWith('bp:')&&key.endsWith(':ban')).flatMap(([,ids])=>ids):[]
   const reserved=match.specialRules.includes('全速对决')&&match.rounds.length<(match.modeParams.t||1)?fullSpeedTrackIds(match):[]
   const used=match.trackPool.noRepeat?match.rounds.map(round=>round.trackId):[]
   const overtime=evaluateGrandRound(match).phase==='overtime'&&match.specialRules.includes('巅峰鏖战')
@@ -300,12 +299,12 @@ function RoundEditor({data,round,match,save,onClose}:{data:AppData;round:RoundRe
     return players.map(player=>({key:playerKey(side.id,player),name:`${side.name} · ${player.name}`}))
   })
   const carReady=!carLimit||carParticipants.every(player=>draft.carIds?.[player.key])
-  const needsRanking=(roundIndex===0&&match.specialRules.some(rule=>rule==='赛道BP'||rule==='赛道BP（王图）'))||match.modeId.startsWith('多人混战')
+  const needsRanking=(roundIndex===0&&bpFeatures(match.specialRules).king)||match.modeId.startsWith('多人混战')
   const competitorIds=match.competitors.map(side=>side.id)
   const calculatedScores=teamMode&&(kind==='points'||kind==='blood')?Object.fromEntries(match.competitors.map(side=>[side.id,(side.players||[]).reduce((sum,player)=>sum+(draft.playerScores?.[playerKey(side.id,player)]||0),0)])):draft.scores
   const rankingScores=teamMode&&kind==='points'?bestPlayerScores(match,draft.playerScores||{}):calculatedScores
   const ranking=draft.ranking||[]
-  const rankingLocked=roundIndex===0&&match.specialRules.some(rule=>rule==='赛道BP'||rule==='赛道BP（王图）')&&match.rounds.length>1&&Boolean(round.ranking)
+  const rankingLocked=roundIndex===0&&bpFeatures(match.specialRules).king&&match.rounds.length>1&&Boolean(round.ranking)
   const autoRanking=kind==='outcome'&&!draft.winnerIds?.length?null:rankRoundScores(competitorIds,rankingScores)
   const resolvedRanking=rankingLocked?round.ranking:rankRoundScores(competitorIds,rankingScores,ranking)
   const firstCandidates=teamMode&&kind==='points'?firstPlaceCandidates(match,draft.playerScores||{}):[]

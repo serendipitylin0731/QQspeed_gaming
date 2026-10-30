@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { initialData } from './data/seed'
-import { bestPlayerScores, displayModeName, evaluateGrandRound, firstPlaceCandidates, kingTracksInFirstRoundOrder, nextFullSpeedTrack, pickAuthority, rankRoundScores, tracksInPool, trailingSide } from './matchRules'
+import { bestPlayerScores, bpFeatures, displayModeName, evaluateGrandRound, firstPlaceCandidates, kingTracksInFirstRoundOrder, nextFullSpeedTrack, normalizeBpRules, pickAuthority, rankRoundScores, tracksInPool, trailingSide } from './matchRules'
 import type { MatchState, RoundResult, Track } from './types'
 
 const round=(scores:Record<string,number>,extra:Partial<RoundResult>={}):RoundResult=>({id:crypto.randomUUID(),trackId:'track',scores,notes:'',...extra})
@@ -55,6 +55,15 @@ describe('grand round automation',()=>{
 })
 
 describe('match track pool',()=>{
+  it('keeps king and ban BP independently configurable and maps older rules',()=>{
+    expect(bpFeatures([])).toEqual({king:false,ban:false})
+    expect(bpFeatures(['赛道BP（王图）'])).toEqual({king:true,ban:false})
+    expect(bpFeatures(['赛道BP（Ban 图）'])).toEqual({king:false,ban:true})
+    expect(bpFeatures(['赛道BP（王图）','赛道BP（Ban 图）'])).toEqual({king:true,ban:true})
+    expect(bpFeatures(['赛道BP'])).toEqual({king:true,ban:true})
+    expect(normalizeBpRules(['赛道BP','全速对决'])).toEqual(['全速对决','赛道BP（王图）','赛道BP（Ban 图）'])
+    expect(normalizeBpRules(['赛道BP（仅禁图）'])).toEqual(['赛道BP（Ban 图）'])
+  })
   it('identifies first place by individual score, not the team total',()=>{
     const match=makeMatch({modeId:'kvk组队积分赛',competitors:[{...initialData.match.competitors[0],players:[{id:'a1',name:'a1'},{id:'a2',name:'a2'}]},{...initialData.match.competitors[1],players:[{id:'b1',name:'b1'},{id:'b2',name:'b2'}]}]})
     const scores={'team-a:a1':11,'team-a:a2':1,'team-b:b1':9,'team-b:b2':9}

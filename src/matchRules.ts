@@ -7,6 +7,15 @@ export interface GrandEvaluation {
   phase: 'playing'|'overtime'|'finished'
 }
 
+export function bpFeatures(rules:string[]){
+  return {king:rules.includes('赛道BP')||rules.includes('赛道BP（王图）'),ban:rules.includes('赛道BP')||rules.includes('赛道BP（仅禁图）')||rules.includes('赛道BP（Ban 图）')}
+}
+
+export function normalizeBpRules(rules:string[]){
+  const {king,ban}=bpFeatures(rules)
+  return [...rules.filter(rule=>!['赛道BP','赛道BP（王图）','赛道BP（仅禁图）','赛道BP（Ban 图）'].includes(rule)),...(king?['赛道BP（王图）']:[]),...(ban?['赛道BP（Ban 图）']:[])]
+}
+
 export function displayModeName(modeId:string,params:Record<string,number>):string{
   const size=params.k
   const name=modeId.replace(/^kvk/,size?`${size}v${size}`:'kvk').replace(/n/g,params.n?String(params.n):'n')
@@ -107,7 +116,7 @@ export function rankRoundScores(competitorIds:string[],scores:Record<string,numb
 }
 
 export function kingTracksInFirstRoundOrder(match:MatchState):string[]{
-  if(!match.specialRules.some(rule=>rule==='赛道BP'||rule==='赛道BP（王图）'))return []
+  if(!bpFeatures(match.specialRules).king)return []
   const ranking=match.rounds[0]?.ranking
   if(!ranking||ranking.length!==match.competitors.length||new Set(ranking).size!==ranking.length||!ranking.every(id=>match.competitors.some(side=>side.id===id)))return []
   return ranking.flatMap(id=>match.specialTrackIds[`bp:${id}:king`]||[])
