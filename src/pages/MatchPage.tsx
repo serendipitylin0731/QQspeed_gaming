@@ -4,7 +4,7 @@ import { Modal } from '../components/Modal'
 import { SmartImage } from '../components/SmartImage'
 import { TrackConfirmation, TrackSelector } from '../components/TrackSelector'
 import { initialData } from '../data/seed'
-import { activeTeamPlayers, bestPlayerScores, bpFeatures, displayModeName, evaluateGrandRound, firstPlaceCandidates, kingTracksInFirstRoundOrder, matchScores, nextFullSpeedTrack, normalizeBpRules, pickAuthority, poolName, rankRoundScores, tracksInPool, trailingSide } from '../matchRules'
+import { activeTeamPlayers, bestPlayerScores, bpFeatures, displayModeName, evaluateGrandRound, firstPlaceCandidates, matchScores, matchTrackCandidates, nextFullSpeedTrack, nextKingTrack, normalizeBpRules, pickAuthority, poolName, rankRoundScores, trackIsAmong, tracksInPool, trailingSide } from '../matchRules'
 import type { AppData, Competitor, MatchPlayer, MatchState, RoundResult, SavedMatch, Track, WheelFilter } from '../types'
 
 const modes=['1v1单挑抢n','1v1绝活单挑赛','计时挑战赛','多人混战滴血赛','多人混战积分赛','多人混战抢n','kvk接力抢n','kvk组队滴血赛','kvk组队积分赛','kvk组队计时赛','kvk组队抢n']
@@ -62,15 +62,14 @@ function displaySideScore(match:MatchState,side:Competitor){
 }
 function formatTime(seconds:number){if(!Number.isFinite(seconds)||seconds<=0)return '--:--.---';const minutes=Math.floor(seconds/60);return `${String(minutes).padStart(2,'0')}:${(seconds-minutes*60).toFixed(3).padStart(6,'0')}`}
 function needsSpecialTrackFlow(match:MatchState){const bp=bpFeatures(match.specialRules);return bp.king||bp.ban||match.specialRules.includes('全速对决')}
-function fullSpeedTrackIds(match:MatchState){const perSide=match.competitors.flatMap(side=>match.specialTrackIds[`fullSpeed:${side.id}`]||[]);return perSide.length?perSide:match.specialTrackIds.fullSpeed||[]}
 
 function totals(match:MatchState){return roundTotals(match)}
-function normalizeMatch(match:MatchState):MatchState{return {...structuredClone(initialData.match),...structuredClone(match),teamsConfigured:match.teamsConfigured??Boolean(match.configured),useTeamNames:match.useTeamNames??!match.competitors.some(side=>side.players?.length),modeParams:{...initialData.match.modeParams,...match.modeParams},specialParams:{...initialData.match.specialParams,...match.specialParams},specialRules:match.specialRules||[],specialTrackIds:match.specialTrackIds||{},specialSetupComplete:match.specialSetupComplete??Boolean(match.rounds?.length),trackPool:{...initialData.match.trackPool,...match.trackPool}}}
+function normalizeMatch(match:MatchState):MatchState{return {...structuredClone(initialData.match),...structuredClone(match),teamsConfigured:match.teamsConfigured??Boolean(match.configured),useTeamNames:match.useTeamNames??!match.competitors.some(side=>side.players?.length),modeParams:{...initialData.match.modeParams,...match.modeParams},specialParams:{...initialData.match.specialParams,...match.specialParams},specialRules:match.specialRules||[],specialTrackIds:match.specialTrackIds||{},specialSetupComplete:match.specialSetupComplete??Boolean(match.rounds?.length),trackPool:{...initialData.match.trackPool,...match.trackPool,noRepeat:true}}}
 function scoringStructure(match:MatchState){
   return JSON.stringify({
     modeId:match.modeId,
     modeParams:match.modeParams,
-    trackPool:match.trackPool,
+    trackPool:{...match.trackPool,noRepeat:true},
     specialRules:normalizeBpRules(match.specialRules).sort(),
     specialParams:match.specialParams,
     specialTrackIds:match.specialTrackIds,
@@ -110,15 +109,14 @@ export function MatchPage({ data, update }: { data: AppData; update: (fn: (d: Ap
       setEditingRound(null);setSettings(false);return
     }
     const isLatest=next.rounds.at(-1)?.id===round.id
-    const kings=kingTracksInFirstRoundOrder(next)
-    const nextTrack=isLatest?(nextFullSpeedTrack(next)||kings[next.rounds.length-1]):undefined
+    const nextTrack=isLatest?(nextFullSpeedTrack(next)||nextKingTrack(next,data.tracks)):undefined
     if(nextTrack){const upcoming:RoundResult={id:`round-${Date.now()}-${next.rounds.length}`,trackId:nextTrack,scores:Object.fromEntries(next.competitors.map(side=>[side.id,0])),notes:'',recorded:false};patch({rounds:[...next.rounds,upcoming],activeRound:next.rounds.length});setEditingRound(null);return}
     patch({rounds:next.rounds});setEditingRound(null)
   }
   function forcedNextTrack(){
     return nextFullSpeedTrack(match)
   }
-  function chooseNextTrack(){if(pendingRound){setEditingRound(pendingRound);return}if(missingFirstRanking){setEditingRound(match.rounds[0]);return}const king=kingTracksInFirstRoundOrder(match)[match.rounds.length-1];if(king){addRound(king);return}const forced=forcedNextTrack();if(forced){addRound(forced);return}const target=match.modeParams.t||1,base={...match,rounds:match.rounds.slice(0,target)};if(match.specialRules.includes('全速对决')&&match.rounds.length>=target&&evaluateGrandRound(base).phase==='overtime'&&!trailingSide(base)){setEditingRound(base.rounds.at(-1)||null);return}setPicking(true)}
+  function chooseNextTrack(){if(pendingRound){setEditingRound(pendingRound);return}if(missingFirstRanking){setEditingRound(match.rounds[0]);return}const forced=forcedNextTrack();if(forced){addRound(forced);return}const king=nextKingTrack(match,data.tracks);if(king){addRound(king);return}const target=match.modeParams.t||1,base={...match,rounds:match.rounds.slice(0,target)};if(match.specialRules.includes('全速对决')&&match.rounds.length>=target&&evaluateGrandRound(base).phase==='overtime'&&!trailingSide(base)){setEditingRound(base.rounds.at(-1)||null);return}setPicking(true)}
   function saveArchive(){if(!match.rounds.length)return;const archive:SavedMatch={id:`archive-${Date.now()}`,name:`${displayModeName(match.modeId,match.modeParams)} · ${new Date().toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}`,savedAt:new Date().toISOString(),match:structuredClone(match)};update(d=>({...d,matchArchives:[archive,...d.matchArchives]}))}
   function restart(){update(d=>({...d,match:structuredClone(initialData.match)}));setSettings(false);setPicking(false);setEditingRound(null);setResetArmed(false)}
   function applySettings(next:MatchState){const reset=scoringStructure(next)!==scoringStructure(match),flow=needsSpecialTrackFlow(next);patch({...next,configured:true,specialTrackIds:reset?{}:next.specialTrackIds,specialSetupComplete:flow?(reset?false:match.specialSetupComplete):true,rounds:reset?[]:match.rounds,activeRound:reset?0:match.activeRound});setSettings(false)}
@@ -162,7 +160,7 @@ function SpecialSetupFlow({data,match,onPatch,onEdit}:{data:AppData;match:MatchS
   const bans=hasBan?match.competitors.flatMap(side=>selected[`bp:${side.id}:ban`]||[]):[]
   const blindIds=match.competitors.flatMap(side=>selected[`fullSpeed:${side.id}`]||[])
   const allDone=Boolean(firstId)&&!kingSide&&!banTurn&&!blindSide
-  const duplicateBlind=new Set(blindIds).size!==blindIds.length
+  const duplicateBlind=blindIds.some((id,index)=>{const track=data.tracks.find(item=>item.id===id);return track?trackIsAmong(track,blindIds.slice(0,index),data.tracks):blindIds.slice(0,index).includes(id)})
   const trackName=(id?:string)=>data.tracks.find(track=>track.id===id)?.name||'尚未选择'
   const setSelection=(key:string,ids:string[])=>onPatch({specialTrackIds:{...selected,[key]:ids}})
   const step=!firstId?'first':kingSide?'king':banTurn?'ban':blindSide?'blind':'confirm'
@@ -177,9 +175,9 @@ function SpecialSetupFlow({data,match,onPatch,onEdit}:{data:AppData;match:MatchS
   if(step==='blind'&&blindSide&&blindReady!==blindSide.id)return <div className="special-flow-page page-enter"><div className="special-handoff panel"><span className="handoff-icon" style={{background:blindSide.color}}>{blindSide.name.slice(0,1)}</span><span className="eyebrow">BLIND PICK · 全速对决</span><h1>请将设备交给 {blindSide.name}</h1><p>另一方选择的赛道不会显示。确认周围无人查看后再开始盲选。</p><button className="btn primary" onClick={()=>setBlindReady(blindSide.id)}>开始 {blindSide.name} 的盲选</button></div></div>
   if(allDone)return <div className="special-flow-page page-enter"><SpecialFlowHeader match={match} stages={stages} stepIndex={stepIndex} onEdit={onEdit}/><div className="special-reveal panel"><span className="eyebrow">PRE-MATCH READY</span><h1>{duplicateBlind?'双方选中了同一张全速赛道':'赛前选图完成'}</h1><p>{duplicateBlind?'为保持盲选公平，两方需要重新进行全速对决盲选。':'确认下列地图后进入计分台；首图会自动创建为第一小局。'}</p><div className="special-reveal-grid"><SpecialTrackResult label="首图" ids={[firstId!]} data={data}/>{hasKing&&<SpecialTrackResult label="王图" ids={kings} data={data}/>} {hasBan&&<SpecialTrackResult label="Ban 图" ids={bans} data={data}/>} {match.specialRules.includes('全速对决')&&<SpecialTrackResult label="全速对决盲选" ids={blindIds} data={data} sides={match.competitors}/>}</div>{duplicateBlind?<button className="btn primary" onClick={resetBlind}>重新进行双方盲选</button>:<button className="btn primary" onClick={complete}><Check size={17}/> 确认并进入比赛</button>}</div></div>
   let title='选择本大局首图',description='首图确定后再进行王图、Ban 图和全速对决预选。',candidates=pool,selectedIds:string[]=[]
-  if(step==='king'&&kingSide){title=`${kingSide.name} 选择王图`;description='从本大局地图池中指定一张王图，不需要提前在仓库点亮皇冠。';const used=new Set([firstId,...kings,...bans].filter(Boolean));candidates=pool.filter(track=>!used.has(track.id));selectedIds=selected[`bp:${kingSide.id}:king`]||[]}
-  if(step==='ban'&&banTurn){const key=`bp:${banTurn.side.id}:ban`,own=selected[key]||[],used=new Set([firstId,...kings,...bans].filter(Boolean)),hasHigh=own.some(id=>(data.tracks.find(track=>track.id===id)?.star||0)>=5);title=`${banTurn.side.name} · 第 ${banTurn.round+1} 次 Ban 图`;description='双方交替各 Ban 两张地图；每方最多 Ban 一张五星及以上地图。';candidates=pool.filter(track=>!used.has(track.id)&&(!hasHigh||track.star<5));selectedIds=own}
-  if(step==='blind'&&blindSide){const excluded=new Set([...kings,...bans]);title=`${blindSide.name} 盲选全速对决赛道`;description='只能选择五星及以上地图，且不可以是双方王图或 Ban 图。另一方的盲选结果会在双方完成后统一揭示。';candidates=pool.filter(track=>track.star>=5&&!excluded.has(track.id));selectedIds=selected[`fullSpeed:${blindSide.id}`]||[]}
+  if(step==='king'&&kingSide){title=`${kingSide.name} 选择王图`;description='从本大局地图池中指定一张王图，不需要提前在仓库点亮皇冠。';const used=[firstId,...kings,...bans].filter((id):id is string=>Boolean(id));candidates=pool.filter(track=>!trackIsAmong(track,used,data.tracks));selectedIds=selected[`bp:${kingSide.id}:king`]||[]}
+  if(step==='ban'&&banTurn){const key=`bp:${banTurn.side.id}:ban`,own=selected[key]||[],used=[firstId,...kings,...bans].filter((id):id is string=>Boolean(id)),hasHigh=own.some(id=>(data.tracks.find(track=>track.id===id)?.star||0)>=5);title=`${banTurn.side.name} · 第 ${banTurn.round+1} 次 Ban 图`;description='双方交替各 Ban 两张地图；每方最多 Ban 一张五星及以上地图。';candidates=pool.filter(track=>!trackIsAmong(track,used,data.tracks)&&(!hasHigh||track.star<5));selectedIds=own}
+  if(step==='blind'&&blindSide){const excluded=[...kings,...bans];title=`${blindSide.name} 盲选全速对决赛道`;description='只能选择五星及以上地图，且不可以是双方王图或 Ban 图。另一方的盲选结果会在双方完成后统一揭示。';candidates=pool.filter(track=>track.star>=5&&!trackIsAmong(track,excluded,data.tracks));selectedIds=selected[`fullSpeed:${blindSide.id}`]||[]}
   function choose(track:Track){
     if(step==='first'){setSelection('firstTrack',[track.id]);return}
     if(step==='king'&&kingSide){setSelection(`bp:${kingSide.id}:king`,[track.id]);return}
@@ -273,19 +271,16 @@ function MatchEditor({data,match,onConfirm}:{data:AppData;match:MatchState;onCon
 function MatchPoolEditor({tracks,filter,onChange}:{tracks:Track[];filter:WheelFilter;onChange:(filter:WheelFilter)=>void}){
   const count=tracksInPool(tracks,filter).length
   const toggleStar=(star:number)=>onChange({...filter,stars:filter.stars.includes(star)?filter.stars.filter(value=>value!==star):[...filter.stars,star].sort()})
-  return <section className="match-pool-editor"><div className="form-row-title"><div><strong>本大局地图池</strong><span>本大局所有普通选图和随机选图都只会使用这里的地图</span></div><b>{count} 张</b></div><div className="match-pool-bases">{([['all','全图池'],['peak','巅峰赛'],['league','联赛'],['custom','自定义']] as const).map(([value,label])=><button type="button" key={value} className={filter.base===value?'active':''} onClick={()=>onChange({...filter,base:value})}>{label}</button>)}</div><div className="match-star-filter"><span>星级</span>{[1,2,3,4,5,6,7].map(star=><button type="button" key={star} className={filter.stars.includes(star)?'active':''} onClick={()=>toggleStar(star)}>{star}★</button>)}</div><div className="match-pool-switches"><button type="button" className={filter.excludeSailing?'active':''} onClick={()=>onChange({...filter,excludeSailing:!filter.excludeSailing})}>排除航海赛道</button><button type="button" className={filter.excludeNostalgia?'active':''} onClick={()=>onChange({...filter,excludeNostalgia:!filter.excludeNostalgia})}>排除怀旧赛道</button><button type="button" className={filter.noRepeat?'active':''} onClick={()=>onChange({...filter,noRepeat:!filter.noRepeat})}>本大局不重复选图</button></div>{filter.base==='custom'&&<div className="match-custom-pool"><TrackSelector tracks={tracks} selectedIds={filter.customTrackIds} multi compact onSelect={track=>onChange({...filter,customTrackIds:filter.customTrackIds.includes(track.id)?filter.customTrackIds.filter(id=>id!==track.id):[...filter.customTrackIds,track.id]})}/></div>}{!filter.stars.length&&<p className="field-error">至少选择一个星级。</p>}{filter.base==='custom'&&!filter.customTrackIds.length&&<p className="field-error">自定义图池至少选择一张地图。</p>}</section>
+  return <section className="match-pool-editor"><div className="form-row-title"><div><strong>本大局地图池</strong><span>本大局所有普通选图和随机选图都只会使用这里的地图</span></div><b>{count} 张</b></div><div className="match-pool-bases">{([['all','全图池'],['peak','巅峰赛'],['league','联赛'],['custom','自定义']] as const).map(([value,label])=><button type="button" key={value} className={filter.base===value?'active':''} onClick={()=>onChange({...filter,base:value})}>{label}</button>)}</div><div className="match-star-filter"><span>星级</span>{[1,2,3,4,5,6,7].map(star=><button type="button" key={star} className={filter.stars.includes(star)?'active':''} onClick={()=>toggleStar(star)}>{star}★</button>)}</div><div className="match-pool-switches"><button type="button" className={filter.excludeSailing?'active':''} onClick={()=>onChange({...filter,excludeSailing:!filter.excludeSailing})}>排除航海赛道</button><button type="button" className={filter.excludeNostalgia?'active':''} onClick={()=>onChange({...filter,excludeNostalgia:!filter.excludeNostalgia})}>排除怀旧赛道</button><span>本大局赛道不重复；全速对决和巅峰鏖战按各自规则选图</span></div>{filter.base==='custom'&&<div className="match-custom-pool"><TrackSelector tracks={tracks} selectedIds={filter.customTrackIds} multi compact onSelect={track=>onChange({...filter,customTrackIds:filter.customTrackIds.includes(track.id)?filter.customTrackIds.filter(id=>id!==track.id):[...filter.customTrackIds,track.id]})}/></div>}{!filter.stars.length&&<p className="field-error">至少选择一个星级。</p>}{filter.base==='custom'&&!filter.customTrackIds.length&&<p className="field-error">自定义图池至少选择一张地图。</p>}</section>
 }
 
 function TrackPicker({data,match,onPick,onClose}:{data:AppData;match:MatchState;onPick:(id:string)=>void;onClose:()=>void}){
   const [randomTrack,setRandomTrack]=useState<Track|null>(null)
-  const banned=bpFeatures(match.specialRules).ban?Object.entries(match.specialTrackIds).filter(([key])=>key.startsWith('bp:')&&key.endsWith(':ban')).flatMap(([,ids])=>ids):[]
-  const reserved=match.specialRules.includes('全速对决')&&match.rounds.length<(match.modeParams.t||1)?fullSpeedTrackIds(match):[]
-  const used=match.trackPool.noRepeat?match.rounds.map(round=>round.trackId):[]
   const overtime=evaluateGrandRound(match).phase==='overtime'&&match.specialRules.includes('巅峰鏖战')
-  const candidates=tracksInPool(data.tracks,match.trackPool).filter(track=>!banned.includes(track.id)&&!reserved.includes(track.id)&&!used.includes(track.id)&&(!overtime||track.star>=5))
+  const candidates=matchTrackCandidates(match,data.tracks)
   const random=()=>{if(candidates.length)setRandomTrack(candidates[Math.floor(Math.random()*candidates.length)])}
   const authority=pickAuthority(match)
-  return <Modal title="选择本局赛道" onClose={onClose} wide><div className="picker-head"><p>{authority&&<>选图权：<strong>{authority}</strong><br/></>}{poolName(match.trackPool)} · 当前可选 {candidates.length} 张{overtime?' · 巅峰鏖战仅限五星及以上':''}</p><button className="btn primary" disabled={!candidates.length} onClick={random}><Dices size={16}/> 从本大局图池随机</button></div><TrackSelector tracks={candidates} onSelect={track=>onPick(track.id)}/>{randomTrack&&<TrackConfirmation track={randomTrack} onCancel={()=>setRandomTrack(null)} onConfirm={()=>{onPick(randomTrack.id);setRandomTrack(null)}}/>}</Modal>
+  return <Modal title="选择本局赛道" onClose={onClose} wide><div className="picker-head"><p>{authority&&<>选图权：<strong>{authority}</strong><br/></>}{overtime?'巅峰鏖战 · 五星及以上，Ban 图除外':poolName(match.trackPool)} · 当前可选 {candidates.length} 张</p><button className="btn primary" disabled={!candidates.length} onClick={random}><Dices size={16}/> 随机选图</button></div>{!candidates.length&&<p className="field-error">没有符合条件的可选赛道。</p>}<TrackSelector tracks={candidates} onSelect={track=>onPick(track.id)}/>{randomTrack&&<TrackConfirmation track={randomTrack} onCancel={()=>setRandomTrack(null)} onConfirm={()=>{onPick(randomTrack.id);setRandomTrack(null)}}/>}</Modal>
 }
 
 function RoundEditor({data,round,match,save,onClose}:{data:AppData;round:RoundResult;match:MatchState;save:(r:RoundResult)=>string|undefined;onClose:()=>void}){

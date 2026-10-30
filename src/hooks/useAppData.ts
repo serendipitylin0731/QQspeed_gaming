@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { initialData } from '../data/seed'
+import { correctTrack } from '../data/trackCorrections'
 import type { AppData, Car, Track } from '../types'
 
 const STORAGE_KEY = 'qqspeed-vault-data-v2'
@@ -9,7 +10,7 @@ function load(): AppData {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return initialData
     const parsed = JSON.parse(raw)
-    const cleanTracks = (parsed.tracks || []).filter((track: Track) => !track.id.startsWith('seed-'))
+    const cleanTracks = (parsed.tracks || []).filter((track: Track) => !track.id.startsWith('seed-')).map(correctTrack)
     const cleanCars = (parsed.cars || []).filter((car: Car) => !/^car-\d+$/.test(car.id)).map((car:Car)=>({ ...car, tags: car.tags || [] }))
     return {
       ...initialData,
@@ -17,7 +18,7 @@ function load(): AppData {
       tracks: cleanTracks,
       cars: cleanCars,
       matchArchives: parsed.matchArchives || [],
-      match: { ...initialData.match, ...parsed.match, teamsConfigured: parsed.match?.teamsConfigured ?? Boolean(parsed.match?.configured), useTeamNames: parsed.match?.useTeamNames ?? !parsed.match?.competitors?.some((side: {players?:unknown[]})=>side.players?.length), modeParams: parsed.match?.modeParams || initialData.match.modeParams, specialRules: parsed.match?.specialRules || [], specialParams: parsed.match?.specialParams || initialData.match.specialParams, specialTrackIds: parsed.match?.specialTrackIds || {}, specialSetupComplete: parsed.match?.specialSetupComplete ?? Boolean(parsed.match?.rounds?.length), trackPool: { ...initialData.match.trackPool, ...(parsed.match?.trackPool || {}) }, completedGrandRounds: parsed.match?.completedGrandRounds || [] },
+      match: { ...initialData.match, ...parsed.match, teamsConfigured: parsed.match?.teamsConfigured ?? Boolean(parsed.match?.configured), useTeamNames: parsed.match?.useTeamNames ?? !parsed.match?.competitors?.some((side: {players?:unknown[]})=>side.players?.length), modeParams: parsed.match?.modeParams || initialData.match.modeParams, specialRules: parsed.match?.specialRules || [], specialParams: parsed.match?.specialParams || initialData.match.specialParams, specialTrackIds: parsed.match?.specialTrackIds || {}, specialSetupComplete: parsed.match?.specialSetupComplete ?? Boolean(parsed.match?.rounds?.length), trackPool: { ...initialData.match.trackPool, ...(parsed.match?.trackPool || {}), noRepeat: true }, completedGrandRounds: parsed.match?.completedGrandRounds || [] },
     }
   } catch { return initialData }
 }
@@ -40,8 +41,8 @@ export function useAppData() {
         const existingCars = new Map(current.cars.map((x) => [x.id, x]))
         const officialMaps = result.maps.map((fresh) => {
           const old = existingMaps.get(fresh.id!)
-          return { pools: { sailing: false, nostalgia: false, peak: false, league: false }, king: false, ...fresh, ...old,
-            name: fresh.name!, star: fresh.star!, coverHorizontal: fresh.coverHorizontal!, coverVertical: fresh.coverVertical! } as Track
+          return correctTrack({ pools: { sailing: false, nostalgia: false, peak: false, league: false }, king: false, ...fresh, ...old,
+            name: fresh.name!, star: fresh.star!, coverHorizontal: fresh.coverHorizontal!, coverVertical: fresh.coverVertical! } as Track)
         })
         const officialCars = result.cars.map((fresh) => {
           const old = existingCars.get(fresh.id)
@@ -62,6 +63,6 @@ export function useAppData() {
   useEffect(() => { if (window.qqspeed) syncOfficial(true) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = useCallback((recipe: (current: AppData) => AppData) => setData(recipe), [])
-  const replace = useCallback((next: AppData) => setData(next), [])
+  const replace = useCallback((next: AppData) => setData({ ...next, tracks: next.tracks.map(correctTrack), match: { ...next.match, trackPool: { ...next.match.trackPool, noRepeat: true } } }), [])
   return { data, update, replace, syncing, syncMessage, syncOfficial }
 }

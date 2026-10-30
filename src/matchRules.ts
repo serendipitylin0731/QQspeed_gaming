@@ -30,6 +30,18 @@ export function tracksInPool(tracks:Track[],filter:WheelFilter){
     &&(!filter.excludeNostalgia||!track.pools.nostalgia))
 }
 
+export function trackIsAmong(track:Track, ids:string[], tracks:Track[]){
+  return ids.includes(track.id)||tracks.some(other=>ids.includes(other.id)&&other.name.trim()===track.name.trim())
+}
+
+export function matchTrackCandidates(match:MatchState,tracks:Track[]){
+  const banned=bpFeatures(match.specialRules).ban?Object.entries(match.specialTrackIds).filter(([key])=>key.startsWith('bp:')&&key.endsWith(':ban')).flatMap(([,ids])=>ids):[]
+  const peak=match.specialRules.includes('巅峰鏖战')&&evaluateGrandRound(match).phase==='overtime'
+  const available=peak?tracks.filter(track=>track.star>=5):tracksInPool(tracks,match.trackPool)
+  const used=match.rounds.map(round=>round.trackId)
+  return available.filter(track=>!trackIsAmong(track,banned,tracks)&&(peak||!trackIsAmong(track,used,tracks)))
+}
+
 export function poolName(filter:WheelFilter){
   const base={all:'全图池',peak:'巅峰赛图池',league:'联赛图池',custom:'自定义图池'}[filter.base]
   return `${base} · ${filter.stars.slice().sort((a,b)=>a-b).join('/')} 星${filter.noRepeat?' · 不重复':''}`
@@ -147,6 +159,11 @@ export function kingTracksInFirstRoundOrder(match:MatchState):string[]{
   const ranking=match.rounds[0]?.ranking
   if(!ranking||ranking.length!==match.competitors.length||new Set(ranking).size!==ranking.length||!ranking.every(id=>match.competitors.some(side=>side.id===id)))return []
   return ranking.flatMap(id=>match.specialTrackIds[`bp:${id}:king`]||[])
+}
+
+export function nextKingTrack(match:MatchState,tracks:Track[]):string|undefined{
+  const used=match.rounds.map(round=>round.trackId)
+  return kingTracksInFirstRoundOrder(match).find(id=>{const track=tracks.find(item=>item.id===id);return track?!trackIsAmong(track,used,tracks):!used.includes(id)})
 }
 
 export function nextFullSpeedTrack(match:MatchState):string|undefined{

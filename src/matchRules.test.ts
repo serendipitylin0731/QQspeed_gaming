@@ -1,10 +1,36 @@
 import { describe, expect, it } from 'vitest'
 import { initialData } from './data/seed'
-import { activeTeamPlayers, bestPlayerScores, bpFeatures, displayModeName, evaluateGrandRound, firstPlaceCandidates, kingTracksInFirstRoundOrder, nextFullSpeedTrack, normalizeBpRules, pickAuthority, rankRoundScores, tracksInPool, trailingSide } from './matchRules'
+import { activeTeamPlayers, bestPlayerScores, bpFeatures, displayModeName, evaluateGrandRound, firstPlaceCandidates, kingTracksInFirstRoundOrder, matchTrackCandidates, nextFullSpeedTrack, nextKingTrack, normalizeBpRules, pickAuthority, rankRoundScores, tracksInPool, trailingSide } from './matchRules'
+import { correctTrack } from './data/trackCorrections'
 import type { MatchState, RoundResult, Track } from './types'
 
 const round=(scores:Record<string,number>,extra:Partial<RoundResult>={}):RoundResult=>({id:crypto.randomUUID(),trackId:'track',scores,notes:'',...extra})
 const makeMatch=(patch:Partial<MatchState>={}):MatchState=>({...structuredClone(initialData.match),configured:true,...patch})
+
+describe('赛道星级和比赛选图',()=>{
+  const track=(id:string,name:string,star:number):Track=>({id,name,star,coverHorizontal:'',coverVertical:'',king:false,pools:{sailing:false,nostalgia:false,peak:false,league:false}})
+  const tracks=[track('a','夜游潇湘',5),track('alias','夜游潇湘',3),track('b','赛道乙',5),track('ban','禁图',5),track('ban-alias','禁图',5),track('c','赛道丙',3)]
+  it('修正夜游潇湘星级，保留赛道其他资料',()=>{
+    expect(correctTrack({...tracks[0],king:true})).toMatchObject({name:'夜游潇湘',star:3,king:true})
+    expect(correctTrack(tracks[2])).toBe(tracks[2])
+  })
+  it('普通比赛即使旧设置允许重复，也排除已使用和被禁的同名赛道',()=>{
+    const match=makeMatch({trackPool:{...initialData.match.trackPool,noRepeat:false},specialRules:['赛道BP（Ban 图）'],specialTrackIds:{'bp:team-a:ban':['ban']},rounds:[round({'team-a':1,'team-b':0},{trackId:'a'})]})
+    expect(matchTrackCandidates(match,tracks).map(t=>t.id)).toEqual(['b','c'])
+  })
+  it('巅峰鏖战刷新所有五星及以上赛道，允许已用赛道但排除 Ban 图',()=>{
+    const match=makeMatch({modeId:'1v1单挑抢n',modeParams:{...initialData.match.modeParams,n:2},trackPool:{...initialData.match.trackPool,stars:[3]},specialRules:['巅峰鏖战','赛道BP（Ban 图）'],specialTrackIds:{'bp:team-a:ban':['ban']},rounds:[round({'team-a':1,'team-b':1},{trackId:'a'})]})
+    expect(matchTrackCandidates(match,tracks).map(t=>t.id)).toEqual(['a','b'])
+  })
+  it('旧比赛的王图队列跳过已经使用的同名赛道',()=>{
+    const match=makeMatch({specialRules:['赛道BP（王图）'],specialTrackIds:{'bp:team-a:king':['alias'],'bp:team-b:king':['b']},rounds:[round({'team-a':1,'team-b':0},{trackId:'a',ranking:['team-a','team-b']})]})
+    expect(nextKingTrack(match,tracks)).toBe('b')
+  })
+  it('全速对决预选赛道即使已经使用也自动安排',()=>{
+    const match=makeMatch({modeId:'kvk组队积分赛',modeParams:{...initialData.match.modeParams,t:1},specialRules:['全速对决'],specialTrackIds:{'fullSpeed:team-a':['b'],'fullSpeed:team-b':['a']},rounds:[round({'team-a':10,'team-b':9},{trackId:'a'})]})
+    expect(nextFullSpeedTrack(match)).toBe('a')
+  })
+})
 
 describe('grand round automation',()=>{
   it('switches both relay teams when the leading score reaches the next leg',()=>{
