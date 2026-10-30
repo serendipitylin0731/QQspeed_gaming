@@ -17,7 +17,7 @@ function load(): AppData {
       tracks: cleanTracks,
       cars: cleanCars,
       matchArchives: parsed.matchArchives || [],
-      match: { ...initialData.match, ...parsed.match, modeParams: parsed.match?.modeParams || initialData.match.modeParams, specialRules: parsed.match?.specialRules || [], specialParams: parsed.match?.specialParams || initialData.match.specialParams, specialTrackIds: parsed.match?.specialTrackIds || {}, specialSetupComplete: parsed.match?.specialSetupComplete ?? Boolean(parsed.match?.rounds?.length), trackPool: { ...initialData.match.trackPool, ...(parsed.match?.trackPool || {}) }, completedGrandRounds: parsed.match?.completedGrandRounds || [] },
+      match: { ...initialData.match, ...parsed.match, teamsConfigured: parsed.match?.teamsConfigured ?? Boolean(parsed.match?.configured), useTeamNames: parsed.match?.useTeamNames ?? !parsed.match?.competitors?.some((side: {players?:unknown[]})=>side.players?.length), modeParams: parsed.match?.modeParams || initialData.match.modeParams, specialRules: parsed.match?.specialRules || [], specialParams: parsed.match?.specialParams || initialData.match.specialParams, specialTrackIds: parsed.match?.specialTrackIds || {}, specialSetupComplete: parsed.match?.specialSetupComplete ?? Boolean(parsed.match?.rounds?.length), trackPool: { ...initialData.match.trackPool, ...(parsed.match?.trackPool || {}) }, completedGrandRounds: parsed.match?.completedGrandRounds || [] },
     }
   } catch { return initialData }
 }

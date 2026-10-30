@@ -22,6 +22,8 @@ export const initialData: AppData = {
     completedGrandRounds: [],
     activeRound: 0,
     configured: false,
+    teamsConfigured: false,
+    useTeamNames: true,
     showGrandScore: true,
   },
 }
