@@ -30,6 +30,25 @@ export function matchScores(match:MatchState,rounds=match.rounds){
   return Object.fromEntries(match.competitors.map(side=>[side.id,rounds.reduce((sum,round)=>sum+(round.scores[side.id]||0),0)]))
 }
 
+export function bestPlayerScores(match:MatchState,playerScores:Record<string,number>){
+  return Object.fromEntries(match.competitors.map(side=>[side.id,Math.max(0,...(side.players||[]).map(player=>playerScores[`${side.id}:${player.id}`]??0))]))
+}
+
+export function firstPlaceCandidates(match:MatchState,playerScores:Record<string,number>){
+  const scores=bestPlayerScores(match,playerScores)
+  const best=Math.max(...Object.values(scores))
+  return match.competitors.filter(side=>scores[side.id]===best).map(side=>side.id)
+}
+
+function recordedFirstPlace(match:MatchState,round:MatchState['rounds'][number]):string|undefined{
+  if(match.modeId.startsWith('kvk')&&match.modeId.includes('积分')&&round.playerScores&&Object.keys(round.playerScores).length){
+    const candidates=firstPlaceCandidates(match,round.playerScores)
+    if(candidates.length===1)return candidates[0]
+    return round.firstPlaceId&&candidates.includes(round.firstPlaceId)?round.firstPlaceId:undefined
+  }
+  return round.firstPlaceId||(round.winnerIds?.length===1?round.winnerIds[0]:undefined)
+}
+
 export function trailingSide(match:MatchState,rounds=match.rounds):string|undefined{
   if(match.competitors.length!==2||!rounds.length)return undefined
   const [a,b]=match.competitors.map(side=>side.id)
@@ -42,7 +61,7 @@ export function trailingSide(match:MatchState,rounds=match.rounds):string|undefi
   if(diff!==0)return diff<0?a:b
   if(previouslyTiedLeader)return previouslyTiedLeader
   const last=rounds.at(-1)
-  const first=last?.firstPlaceId||(last?.winnerIds?.length===1?last.winnerIds[0]:undefined)
+  const first=last?recordedFirstPlace(match,last):undefined
   return first===a?b:first===b?a:undefined
 }
 
@@ -102,7 +121,9 @@ function leaders(match:MatchState,scores:Record<string,number>){
 function firstPlaceCounts(match:MatchState){
   const counts=Object.fromEntries(match.competitors.map(side=>[side.id,0]))
   for(const round of match.rounds){
-    if(round.firstPlaceId&&round.firstPlaceId in counts){counts[round.firstPlaceId]++;continue}
+    const recorded=recordedFirstPlace(match,round)
+    if(recorded&&recorded in counts){counts[recorded]++;continue}
+    if(round.playerScores&&Object.keys(round.playerScores).length)continue
     const top=leaders(match,round.scores)
     if(top.length===1)counts[top[0]]++
   }

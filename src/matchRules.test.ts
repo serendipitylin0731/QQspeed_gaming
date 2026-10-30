@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { initialData } from './data/seed'
-import { displayModeName, evaluateGrandRound, kingTracksInFirstRoundOrder, pickAuthority, rankRoundScores, tracksInPool, trailingSide } from './matchRules'
+import { bestPlayerScores, displayModeName, evaluateGrandRound, firstPlaceCandidates, kingTracksInFirstRoundOrder, pickAuthority, rankRoundScores, tracksInPool, trailingSide } from './matchRules'
 import type { MatchState, RoundResult, Track } from './types'
 
 const round=(scores:Record<string,number>,extra:Partial<RoundResult>={}):RoundResult=>({id:crypto.randomUUID(),trackId:'track',scores,notes:'',...extra})
@@ -43,6 +43,16 @@ describe('grand round automation',()=>{
 })
 
 describe('match track pool',()=>{
+  it('identifies first place by individual score, not the team total',()=>{
+    const match=makeMatch({modeId:'kvk组队积分赛',competitors:[{...initialData.match.competitors[0],players:[{id:'a1',name:'a1'},{id:'a2',name:'a2'}]},{...initialData.match.competitors[1],players:[{id:'b1',name:'b1'},{id:'b2',name:'b2'}]}]})
+    const scores={'team-a:a1':11,'team-a:a2':1,'team-b:b1':9,'team-b:b2':9}
+    expect(bestPlayerScores(match,scores)).toEqual({'team-a':11,'team-b':9})
+    expect(firstPlaceCandidates(match,scores)).toEqual(['team-a'])
+    expect(firstPlaceCandidates(match,{...scores,'team-b:b1':11})).toEqual(['team-a','team-b'])
+    expect(firstPlaceCandidates(match,{...scores,'team-a:a2':11})).toEqual(['team-a'])
+    match.rounds=[round({'team-a':12,'team-b':12},{playerScores:scores,firstPlaceId:'team-b'})]
+    expect(trailingSide(match)).toBe('team-b')
+  })
   it('uses the most recently caught-up team when the total is tied',()=>{
     const match=makeMatch({modeId:'kvk组队积分赛',rounds:[round({'team-a':10,'team-b':5}),round({'team-a':1,'team-b':6}),round({'team-a':1,'team-b':3}),round({'team-a':4,'team-b':2})]})
     expect(trailingSide(match)).toBe('team-b')
