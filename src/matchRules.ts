@@ -107,10 +107,27 @@ export function rankRoundScores(competitorIds:string[],scores:Record<string,numb
 }
 
 export function kingTracksInFirstRoundOrder(match:MatchState):string[]{
-  if(!match.specialRules.some(rule=>rule.startsWith('赛道BP')))return []
+  if(!match.specialRules.some(rule=>rule==='赛道BP'||rule==='赛道BP（王图）'))return []
   const ranking=match.rounds[0]?.ranking
   if(!ranking||ranking.length!==match.competitors.length||new Set(ranking).size!==ranking.length||!ranking.every(id=>match.competitors.some(side=>side.id===id)))return []
   return ranking.flatMap(id=>match.specialTrackIds[`bp:${id}:king`]||[])
+}
+
+export function nextFullSpeedTrack(match:MatchState):string|undefined{
+  if(!match.specialRules.includes('全速对决')||match.rounds.some(round=>round.recorded===false))return undefined
+  const target=match.modeParams.t||1
+  if(match.rounds.length<target||match.rounds.length>=target+2)return undefined
+  const base={...match,rounds:match.rounds.slice(0,target)}
+  const scores=matchScores(base),values=base.competitors.map(side=>scores[side.id]||0).sort((a,b)=>b-a)
+  if(values.length!==2||values[0]-values[1]>(match.specialParams.fullSpeedGap??3))return undefined
+  const trailing=trailingSide(base)
+  if(!trailing)return undefined
+  const order=[trailing,...base.competitors.map(side=>side.id).filter(id=>id!==trailing)]
+  const selected=order.map(id=>match.specialTrackIds[`fullSpeed:${id}`]?.[0])
+  if(selected.every(Boolean))return selected[match.rounds.length-target]
+  const legacy=match.specialTrackIds.fullSpeed||[]
+  const index=base.competitors.findIndex(side=>side.id===trailing)
+  return (index===0?legacy:[legacy[1],legacy[0]])[match.rounds.length-target]
 }
 
 function leaders(match:MatchState,scores:Record<string,number>){

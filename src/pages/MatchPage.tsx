@@ -4,7 +4,7 @@ import { Modal } from '../components/Modal'
 import { SmartImage } from '../components/SmartImage'
 import { TrackConfirmation, TrackSelector } from '../components/TrackSelector'
 import { initialData } from '../data/seed'
-import { bestPlayerScores, displayModeName, evaluateGrandRound, firstPlaceCandidates, kingTracksInFirstRoundOrder, matchScores, pickAuthority, poolName, rankRoundScores, tracksInPool, trailingSide } from '../matchRules'
+import { bestPlayerScores, displayModeName, evaluateGrandRound, firstPlaceCandidates, kingTracksInFirstRoundOrder, matchScores, nextFullSpeedTrack, pickAuthority, poolName, rankRoundScores, tracksInPool, trailingSide } from '../matchRules'
 import type { AppData, Competitor, MatchPlayer, MatchState, RoundResult, SavedMatch, Track, WheelFilter } from '../types'
 
 const modes=['1v1单挑抢n','1v1绝活单挑赛','计时挑战赛','多人混战滴血赛','多人混战积分赛','多人混战抢n','kvk接力抢n','kvk组队滴血赛','kvk组队积分赛','kvk组队计时赛','kvk组队抢n']
@@ -14,6 +14,7 @@ const specialOptions:Record<string,string[]>={
   '多人混战滴血赛':['赛道BP（王图）'],
   '多人混战积分赛':['赛道BP（王图）','同分加赛'],
   '多人混战抢n':['赛道BP（王图）'],
+  'kvk接力抢n':['赛道BP（仅禁图）'],
   'kvk组队积分赛':['赛道BP','全速对决'],
   'kvk组队抢n':['赛道BP'],
 }
@@ -21,6 +22,7 @@ const specialDescriptions:Record<string,string>={
   '赛车限制':'每位选手的赛车只能使用一次；每小局录入赛车后自动排除已使用赛车。',
   '赛道BP':'双方各选一张王图和两张禁用图；每方禁用图中最多一张五星及以上赛道。',
   '赛道BP（王图）':'每个参赛方选择一张王图，不进行禁图。',
+  '赛道BP（仅禁图）':'双方轮流各 Ban 两张地图，不设置王图；每方最多 Ban 一张五星及以上赛道。',
   '鏖战':'达到赛点平分后，必须领先两分；也可以设置封顶分数。',
   '巅峰鏖战':'鏖战触发后只能选择五星及以上赛道，并沿用领先两分与封顶规则。',
   '同分加赛':'规定局数结束仍并列时，继续比赛直到第一名唯一。',
@@ -79,7 +81,7 @@ export function MatchPage({ data, update }: { data: AppData; update: (fn: (d: Ap
   const evaluation=useMemo(()=>evaluateGrandRound({...match,rounds:match.rounds.filter(round=>round.recorded!==false)}),[match])
   const lastRound=match.rounds.at(-1)
   const pendingRound=lastRound?.recorded===false?lastRound:undefined
-  const hasBp=match.specialRules.some(rule=>rule.startsWith('赛道BP'))
+  const hasBp=match.specialRules.some(rule=>rule==='赛道BP'||rule==='赛道BP（王图）')
   const missingFirstRanking=hasBp&&match.rounds.length>0&&!match.rounds[0].ranking
   const patch=(value:Partial<MatchState>)=>update(d=>({...d,match:{...d.match,...value}}))
   function addRound(trackId:string){const round:RoundResult={id:`round-${Date.now()}`,trackId,scores:Object.fromEntries(match.competitors.map(x=>[x.id,0])),notes:'',recorded:false};patch({rounds:[...match.rounds,round],activeRound:match.rounds.length});setPicking(false);setEditingRound(round)}
@@ -92,23 +94,14 @@ export function MatchPage({ data, update }: { data: AppData; update: (fn: (d: Ap
       patch({competitors:next.competitors.map(side=>({...side,grandScore:side.grandScore+(result.winnerIds.includes(side.id)?1:0),score:0})),completedGrandRounds:[...next.completedGrandRounds,{id:`grand-${Date.now()}`,modeId:next.modeId,modeParams:structuredClone(next.modeParams),specialRules:next.specialRules,trackPool:structuredClone(next.trackPool),specialParams:structuredClone(next.specialParams),specialTrackIds:structuredClone(next.specialTrackIds),competitors:structuredClone(next.competitors),useTeamNames:next.useTeamNames,rounds:structuredClone(next.rounds),finalScores,winnerIds:result.winnerIds,completedAt:new Date().toISOString()}],configured:false,specialTrackIds:{},specialSetupComplete:!needsSpecialTrackFlow(next),rounds:[],activeRound:0})
       setEditingRound(null);setSettings(false);return
     }
-    const kings=kingTracksInFirstRoundOrder(next)
     const isLatest=next.rounds.at(-1)?.id===round.id
-    const nextKing=isLatest?kings[next.rounds.length-1]:undefined
-    if(nextKing){const upcoming:RoundResult={id:`round-${Date.now()}-${next.rounds.length}`,trackId:nextKing,scores:Object.fromEntries(next.competitors.map(side=>[side.id,0])),notes:'',recorded:false};patch({rounds:[...next.rounds,upcoming],activeRound:next.rounds.length});setEditingRound(null);return}
+    const kings=kingTracksInFirstRoundOrder(next)
+    const nextTrack=isLatest?(nextFullSpeedTrack(next)||kings[next.rounds.length-1]):undefined
+    if(nextTrack){const upcoming:RoundResult={id:`round-${Date.now()}-${next.rounds.length}`,trackId:nextTrack,scores:Object.fromEntries(next.competitors.map(side=>[side.id,0])),notes:'',recorded:false};patch({rounds:[...next.rounds,upcoming],activeRound:next.rounds.length});setEditingRound(null);return}
     patch({rounds:next.rounds});setEditingRound(null)
   }
   function forcedNextTrack(){
-    if(!match.specialRules.includes('全速对决'))return undefined
-    const target=match.modeParams.t||1,base={...match,rounds:match.rounds.slice(0,target)}
-    if(match.rounds.length<target||evaluateGrandRound(base).finished)return undefined
-    const trailing=trailingSide(base)
-    if(!trailing)return undefined
-    const playOrder=[trailing,...match.competitors.map(side=>side.id).filter(id=>id!==trailing)].flatMap(id=>match.specialTrackIds[`fullSpeed:${id}`]||[])
-    if(playOrder.length)return playOrder[match.rounds.length-target]
-    const legacy=fullSpeedTrackIds(match)
-    const index=match.competitors.findIndex(side=>side.id===trailing)
-    return (index===0?legacy:[legacy[1],legacy[0]])[match.rounds.length-target]
+    return nextFullSpeedTrack(match)
   }
   function chooseNextTrack(){if(pendingRound){setEditingRound(pendingRound);return}if(missingFirstRanking){setEditingRound(match.rounds[0]);return}const king=kingTracksInFirstRoundOrder(match)[match.rounds.length-1];if(king){addRound(king);return}const forced=forcedNextTrack();if(forced){addRound(forced);return}const target=match.modeParams.t||1,base={...match,rounds:match.rounds.slice(0,target)};if(match.specialRules.includes('全速对决')&&match.rounds.length>=target&&evaluateGrandRound(base).phase==='overtime'&&!trailingSide(base)){setEditingRound(base.rounds.at(-1)||null);return}setPicking(true)}
   function saveArchive(){if(!match.rounds.length)return;const archive:SavedMatch={id:`archive-${Date.now()}`,name:`${displayModeName(match.modeId,match.modeParams)} · ${new Date().toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}`,savedAt:new Date().toISOString(),match:structuredClone(match)};update(d=>({...d,matchArchives:[archive,...d.matchArchives]}))}
@@ -146,8 +139,10 @@ function SpecialSetupFlow({data,match,onPatch,onEdit}:{data:AppData;match:MatchS
   const selected=match.specialTrackIds
   const firstId=selected.firstTrack?.[0]
   const bpRule=match.specialRules.find(rule=>rule.startsWith('赛道BP'))
-  const kingSide=bpRule?match.competitors.find(side=>(selected[`bp:${side.id}:king`]?.length||0)<1):undefined
-  const banTurns=bpRule==='赛道BP'?[0,1].flatMap(round=>match.competitors.map(side=>({side,round}))):[]
+  const hasKing=bpRule==='赛道BP'||bpRule==='赛道BP（王图）'
+  const hasBan=bpRule==='赛道BP'||bpRule==='赛道BP（仅禁图）'
+  const kingSide=hasKing?match.competitors.find(side=>(selected[`bp:${side.id}:king`]?.length||0)<1):undefined
+  const banTurns=hasBan?[0,1].flatMap(round=>match.competitors.map(side=>({side,round}))):[]
   const banTurn=banTurns.find(({side,round})=>(selected[`bp:${side.id}:ban`]?.length||0)<=round)
   const blindSide=match.specialRules.includes('全速对决')?match.competitors.find(side=>(selected[`fullSpeed:${side.id}`]?.length||0)<1):undefined
   const kings=match.competitors.flatMap(side=>selected[`bp:${side.id}:king`]||[])
@@ -158,7 +153,7 @@ function SpecialSetupFlow({data,match,onPatch,onEdit}:{data:AppData;match:MatchS
   const trackName=(id?:string)=>data.tracks.find(track=>track.id===id)?.name||'尚未选择'
   const setSelection=(key:string,ids:string[])=>onPatch({specialTrackIds:{...selected,[key]:ids}})
   const step=!firstId?'first':kingSide?'king':banTurn?'ban':blindSide?'blind':'confirm'
-  const stages=[{id:'first',label:'首图'},...(bpRule?[{id:'king',label:'双方王图'}]:[]),...(bpRule==='赛道BP'?[{id:'ban',label:'轮流 Ban 图'}]:[]),...(match.specialRules.includes('全速对决')?[{id:'blind',label:'全速盲选'}]:[]),{id:'confirm',label:'确认'}]
+  const stages=[{id:'first',label:'首图'},...(hasKing?[{id:'king',label:'双方王图'}]:[]),...(hasBan?[{id:'ban',label:'轮流 Ban 图'}]:[]),...(match.specialRules.includes('全速对决')?[{id:'blind',label:'全速盲选'}]:[]),{id:'confirm',label:'确认'}]
   const stepIndex=Math.max(0,stages.findIndex(item=>item.id===step))
   function complete(){
     if(!firstId||duplicateBlind)return
@@ -167,7 +162,7 @@ function SpecialSetupFlow({data,match,onPatch,onEdit}:{data:AppData;match:MatchS
   }
   function resetBlind(){const next={...selected};Object.keys(next).filter(key=>key.startsWith('fullSpeed:')||key==='fullSpeed').forEach(key=>delete next[key]);onPatch({specialTrackIds:next});setBlindReady('')}
   if(step==='blind'&&blindSide&&blindReady!==blindSide.id)return <div className="special-flow-page page-enter"><div className="special-handoff panel"><span className="handoff-icon" style={{background:blindSide.color}}>{blindSide.name.slice(0,1)}</span><span className="eyebrow">BLIND PICK · 全速对决</span><h1>请将设备交给 {blindSide.name}</h1><p>另一方选择的赛道不会显示。确认周围无人查看后再开始盲选。</p><button className="btn primary" onClick={()=>setBlindReady(blindSide.id)}>开始 {blindSide.name} 的盲选</button></div></div>
-  if(allDone)return <div className="special-flow-page page-enter"><SpecialFlowHeader match={match} stages={stages} stepIndex={stepIndex} onEdit={onEdit}/><div className="special-reveal panel"><span className="eyebrow">PRE-MATCH READY</span><h1>{duplicateBlind?'双方选中了同一张全速赛道':'赛前选图完成'}</h1><p>{duplicateBlind?'为保持盲选公平，两方需要重新进行全速对决盲选。':'确认下列地图后进入计分台；首图会自动创建为第一小局。'}</p><div className="special-reveal-grid"><SpecialTrackResult label="首图" ids={[firstId!]} data={data}/>{bpRule&&<SpecialTrackResult label="王图" ids={kings} data={data}/>} {bpRule==='赛道BP'&&<SpecialTrackResult label="Ban 图" ids={bans} data={data}/>} {match.specialRules.includes('全速对决')&&<SpecialTrackResult label="全速对决盲选" ids={blindIds} data={data} sides={match.competitors}/>}</div>{duplicateBlind?<button className="btn primary" onClick={resetBlind}>重新进行双方盲选</button>:<button className="btn primary" onClick={complete}><Check size={17}/> 确认并进入比赛</button>}</div></div>
+  if(allDone)return <div className="special-flow-page page-enter"><SpecialFlowHeader match={match} stages={stages} stepIndex={stepIndex} onEdit={onEdit}/><div className="special-reveal panel"><span className="eyebrow">PRE-MATCH READY</span><h1>{duplicateBlind?'双方选中了同一张全速赛道':'赛前选图完成'}</h1><p>{duplicateBlind?'为保持盲选公平，两方需要重新进行全速对决盲选。':'确认下列地图后进入计分台；首图会自动创建为第一小局。'}</p><div className="special-reveal-grid"><SpecialTrackResult label="首图" ids={[firstId!]} data={data}/>{hasKing&&<SpecialTrackResult label="王图" ids={kings} data={data}/>} {hasBan&&<SpecialTrackResult label="Ban 图" ids={bans} data={data}/>} {match.specialRules.includes('全速对决')&&<SpecialTrackResult label="全速对决盲选" ids={blindIds} data={data} sides={match.competitors}/>}</div>{duplicateBlind?<button className="btn primary" onClick={resetBlind}>重新进行双方盲选</button>:<button className="btn primary" onClick={complete}><Check size={17}/> 确认并进入比赛</button>}</div></div>
   let title='选择本大局首图',description='首图确定后再进行王图、Ban 图和全速对决预选。',candidates=pool,selectedIds:string[]=[]
   if(step==='king'&&kingSide){title=`${kingSide.name} 选择王图`;description='从本大局地图池中指定一张王图，不需要提前在仓库点亮皇冠。';const used=new Set([firstId,...kings,...bans].filter(Boolean));candidates=pool.filter(track=>!used.has(track.id));selectedIds=selected[`bp:${kingSide.id}:king`]||[]}
   if(step==='ban'&&banTurn){const key=`bp:${banTurn.side.id}:ban`,own=selected[key]||[],used=new Set([firstId,...kings,...bans].filter(Boolean)),hasHigh=own.some(id=>(data.tracks.find(track=>track.id===id)?.star||0)>=5);title=`${banTurn.side.name} · 第 ${banTurn.round+1} 次 Ban 图`;description='双方交替各 Ban 两张地图；每方最多 Ban 一张五星及以上地图。';candidates=pool.filter(track=>!used.has(track.id)&&(!hasHigh||track.star<5));selectedIds=own}
@@ -179,7 +174,7 @@ function SpecialSetupFlow({data,match,onPatch,onEdit}:{data:AppData;match:MatchS
     if(step==='blind'&&blindSide){setSelection(`fullSpeed:${blindSide.id}`,[track.id]);setBlindReady('')}
   }
   const random=()=>{if(candidates.length)setRandomTrack(candidates[Math.floor(Math.random()*candidates.length)])}
-  return <div className="special-flow-page page-enter"><SpecialFlowHeader match={match} stages={stages} stepIndex={stepIndex} onEdit={onEdit}/><div className="special-flow-workspace"><aside className="panel special-flow-summary"><span className="eyebrow">已完成选择</span><SpecialTrackResult label="首图" ids={firstId?[firstId]:[]} data={data}/>{bpRule&&match.competitors.map(side=><SpecialTrackResult key={`king-${side.id}`} label={`${side.name}王图`} ids={selected[`bp:${side.id}:king`]||[]} data={data}/>)}{bpRule==='赛道BP'&&match.competitors.map(side=><SpecialTrackResult key={`ban-${side.id}`} label={`${side.name} Ban`} ids={selected[`bp:${side.id}:ban`]||[]} data={data}/>)}</aside><main className="panel special-flow-picker"><div className="special-flow-title"><div><span className="eyebrow">STEP {stepIndex+1}</span><h1>{title}</h1><p>{description}</p></div>{step==='first'&&<button className="btn ghost" disabled={!candidates.length} onClick={random}><Dices size={16}/> 随机首图</button>}</div><TrackSelector key={`${step}-${kingSide?.id||banTurn?.side.id||blindSide?.id||''}-${banTurn?.round||0}`} tracks={candidates} selectedIds={selectedIds} onSelect={choose}/>{randomTrack&&<TrackConfirmation track={randomTrack} onCancel={()=>setRandomTrack(null)} onConfirm={()=>{choose(randomTrack);setRandomTrack(null)}}/>}</main></div></div>
+  return <div className="special-flow-page page-enter"><SpecialFlowHeader match={match} stages={stages} stepIndex={stepIndex} onEdit={onEdit}/><div className="special-flow-workspace"><aside className="panel special-flow-summary"><span className="eyebrow">已完成选择</span><SpecialTrackResult label="首图" ids={firstId?[firstId]:[]} data={data}/>{hasKing&&match.competitors.map(side=><SpecialTrackResult key={`king-${side.id}`} label={`${side.name}王图`} ids={selected[`bp:${side.id}:king`]||[]} data={data}/>)}{hasBan&&match.competitors.map(side=><SpecialTrackResult key={`ban-${side.id}`} label={`${side.name} Ban`} ids={selected[`bp:${side.id}:ban`]||[]} data={data}/>)}</aside><main className="panel special-flow-picker"><div className="special-flow-title"><div><span className="eyebrow">STEP {stepIndex+1}</span><h1>{title}</h1><p>{description}</p></div>{step==='first'&&<button className="btn ghost" disabled={!candidates.length} onClick={random}><Dices size={16}/> 随机首图</button>}</div><TrackSelector key={`${step}-${kingSide?.id||banTurn?.side.id||blindSide?.id||''}-${banTurn?.round||0}`} tracks={candidates} selectedIds={selectedIds} onSelect={choose}/>{randomTrack&&<TrackConfirmation track={randomTrack} onCancel={()=>setRandomTrack(null)} onConfirm={()=>{choose(randomTrack);setRandomTrack(null)}}/>}</main></div></div>
 }
 
 function SpecialFlowHeader({match,stages,stepIndex,onEdit}:{match:MatchState;stages:{id:string;label:string}[];stepIndex:number;onEdit:()=>void}){return <><div className="special-flow-head"><div><span className="eyebrow">第 {match.completedGrandRounds.length+1} 大局 · 赛前流程</span><h1>{displayModeName(match.modeId,match.modeParams)}</h1><p>{poolName(match.trackPool)}</p></div><button className="btn ghost" onClick={onEdit}><Settings2 size={16}/> 修改大局设置</button></div><div className="special-flow-steps">{stages.map((stage,index)=><div className={index<stepIndex?'done':index===stepIndex?'active':''} key={stage.id}><b>{index<stepIndex?<Check size={13}/>:index+1}</b><span>{stage.label}</span></div>)}</div></>}
@@ -305,12 +300,12 @@ function RoundEditor({data,round,match,save,onClose}:{data:AppData;round:RoundRe
     return players.map(player=>({key:playerKey(side.id,player),name:`${side.name} · ${player.name}`}))
   })
   const carReady=!carLimit||carParticipants.every(player=>draft.carIds?.[player.key])
-  const needsRanking=(roundIndex===0&&match.specialRules.some(rule=>rule.startsWith('赛道BP')))||match.modeId.startsWith('多人混战')
+  const needsRanking=(roundIndex===0&&match.specialRules.some(rule=>rule==='赛道BP'||rule==='赛道BP（王图）'))||match.modeId.startsWith('多人混战')
   const competitorIds=match.competitors.map(side=>side.id)
   const calculatedScores=teamMode&&(kind==='points'||kind==='blood')?Object.fromEntries(match.competitors.map(side=>[side.id,(side.players||[]).reduce((sum,player)=>sum+(draft.playerScores?.[playerKey(side.id,player)]||0),0)])):draft.scores
   const rankingScores=teamMode&&kind==='points'?bestPlayerScores(match,draft.playerScores||{}):calculatedScores
   const ranking=draft.ranking||[]
-  const rankingLocked=roundIndex===0&&match.specialRules.some(rule=>rule.startsWith('赛道BP'))&&match.rounds.length>1&&Boolean(round.ranking)
+  const rankingLocked=roundIndex===0&&match.specialRules.some(rule=>rule==='赛道BP'||rule==='赛道BP（王图）')&&match.rounds.length>1&&Boolean(round.ranking)
   const autoRanking=kind==='outcome'&&!draft.winnerIds?.length?null:rankRoundScores(competitorIds,rankingScores)
   const resolvedRanking=rankingLocked?round.ranking:rankRoundScores(competitorIds,rankingScores,ranking)
   const firstCandidates=teamMode&&kind==='points'?firstPlaceCandidates(match,draft.playerScores||{}):[]

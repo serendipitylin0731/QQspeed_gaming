@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { initialData } from './data/seed'
-import { bestPlayerScores, displayModeName, evaluateGrandRound, firstPlaceCandidates, kingTracksInFirstRoundOrder, pickAuthority, rankRoundScores, tracksInPool, trailingSide } from './matchRules'
+import { bestPlayerScores, displayModeName, evaluateGrandRound, firstPlaceCandidates, kingTracksInFirstRoundOrder, nextFullSpeedTrack, pickAuthority, rankRoundScores, tracksInPool, trailingSide } from './matchRules'
 import type { MatchState, RoundResult, Track } from './types'
 
 const round=(scores:Record<string,number>,extra:Partial<RoundResult>={}):RoundResult=>({id:crypto.randomUUID(),trackId:'track',scores,notes:'',...extra})
@@ -29,6 +29,18 @@ describe('grand round automation',()=>{
     expect(evaluateGrandRound(match)).toMatchObject({finished:false,phase:'overtime'})
     match.rounds.push(round({'team-a':3,'team-b':2}),round({'team-a':4,'team-b':1}))
     expect(evaluateGrandRound(match)).toMatchObject({finished:true,winnerIds:['team-a']})
+  })
+  it('queues the trailing team’s full-speed map first and the other map second',()=>{
+    const match=makeMatch({modeId:'kvk组队积分赛',modeParams:{...initialData.match.modeParams,t:2},specialRules:['全速对决'],specialTrackIds:{'fullSpeed:team-a':['map-a'],'fullSpeed:team-b':['map-b']},rounds:[round({'team-a':10,'team-b':7}),round({'team-a':5,'team-b':7})]})
+    expect(nextFullSpeedTrack(match)).toBe('map-b')
+    match.rounds.push(round({'team-a':3,'team-b':5},{recorded:false}))
+    expect(nextFullSpeedTrack(match)).toBeUndefined()
+    match.rounds[2].recorded=true
+    expect(nextFullSpeedTrack(match)).toBe('map-a')
+  })
+  it('uses the latest caught-up team for tied full-speed selection',()=>{
+    const match=makeMatch({modeId:'kvk组队积分赛',modeParams:{...initialData.match.modeParams,t:2},specialRules:['全速对决'],specialTrackIds:{'fullSpeed:team-a':['map-a'],'fullSpeed:team-b':['map-b']},rounds:[round({'team-a':10,'team-b':7}),round({'team-a':5,'team-b':8})]})
+    expect(nextFullSpeedTrack(match)).toBe('map-a')
   })
 
   it('honors a zero-point full-speed trigger threshold',()=>{
@@ -83,6 +95,10 @@ describe('match track pool',()=>{
     const match=makeMatch({specialRules:['赛道BP'],specialTrackIds:{'bp:team-a:king':['king-a'],'bp:team-b:king':['king-b']},rounds:[round({'team-a':3,'team-b':5},{ranking:['team-b','team-a']})]})
     expect(kingTracksInFirstRoundOrder(match)).toEqual(['king-b','king-a'])
     match.rounds[0].ranking=['team-a']
+    expect(kingTracksInFirstRoundOrder(match)).toEqual([])
+  })
+  it('does not schedule king tracks in relay ban-only BP',()=>{
+    const match=makeMatch({modeId:'kvk接力抢n',specialRules:['赛道BP（仅禁图）'],specialTrackIds:{'bp:team-a:king':['old-king']},rounds:[round({'team-a':1,'team-b':0},{ranking:['team-a','team-b']})]})
     expect(kingTracksInFirstRoundOrder(match)).toEqual([])
   })
   it('applies base pool, stars and exclusions together',()=>{
