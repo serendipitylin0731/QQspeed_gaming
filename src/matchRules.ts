@@ -23,6 +23,13 @@ export function matchScores(match:MatchState,rounds=match.rounds){
   return Object.fromEntries(match.competitors.map(side=>[side.id,rounds.reduce((sum,round)=>sum+(round.scores[side.id]||0),0)]))
 }
 
+export function kingTracksInFirstRoundOrder(match:MatchState):string[]{
+  if(!match.specialRules.some(rule=>rule.startsWith('赛道BP')))return []
+  const ranking=match.rounds[0]?.ranking
+  if(!ranking||ranking.length!==match.competitors.length||new Set(ranking).size!==ranking.length||!ranking.every(id=>match.competitors.some(side=>side.id===id)))return []
+  return ranking.flatMap(id=>match.specialTrackIds[`bp:${id}:king`]||[])
+}
+
 function leaders(match:MatchState,scores:Record<string,number>){
   const best=Math.max(...match.competitors.map(side=>scores[side.id]||0))
   return match.competitors.filter(side=>(scores[side.id]||0)===best).map(side=>side.id)

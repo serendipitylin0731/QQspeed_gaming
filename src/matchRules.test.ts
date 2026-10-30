@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { initialData } from './data/seed'
-import { evaluateGrandRound, tracksInPool } from './matchRules'
+import { evaluateGrandRound, kingTracksInFirstRoundOrder, tracksInPool } from './matchRules'
 import type { MatchState, RoundResult, Track } from './types'
 
 const round=(scores:Record<string,number>,extra:Partial<RoundResult>={}):RoundResult=>({id:crypto.randomUUID(),trackId:'track',scores,notes:'',...extra})
@@ -43,6 +43,12 @@ describe('grand round automation',()=>{
 })
 
 describe('match track pool',()=>{
+  it('orders each side’s king track by the recorded first-round ranking',()=>{
+    const match=makeMatch({specialRules:['赛道BP'],specialTrackIds:{'bp:team-a:king':['king-a'],'bp:team-b:king':['king-b']},rounds:[round({'team-a':3,'team-b':5},{ranking:['team-b','team-a']})]})
+    expect(kingTracksInFirstRoundOrder(match)).toEqual(['king-b','king-a'])
+    match.rounds[0].ranking=['team-a']
+    expect(kingTracksInFirstRoundOrder(match)).toEqual([])
+  })
   it('applies base pool, stars and exclusions together',()=>{
     const tracks=[
       {id:'a',name:'A',star:5,pools:{sailing:false,nostalgia:false,peak:true,league:false},king:false},
