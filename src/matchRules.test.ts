@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { initialData } from './data/seed'
-import { displayModeName, evaluateGrandRound, kingTracksInFirstRoundOrder, rankRoundScores, tracksInPool } from './matchRules'
+import { displayModeName, evaluateGrandRound, kingTracksInFirstRoundOrder, pickAuthority, rankRoundScores, tracksInPool, trailingSide } from './matchRules'
 import type { MatchState, RoundResult, Track } from './types'
 
 const round=(scores:Record<string,number>,extra:Partial<RoundResult>={}):RoundResult=>({id:crypto.randomUUID(),trackId:'track',scores,notes:'',...extra})
@@ -43,6 +43,21 @@ describe('grand round automation',()=>{
 })
 
 describe('match track pool',()=>{
+  it('uses the most recently caught-up team when the total is tied',()=>{
+    const match=makeMatch({modeId:'kvk组队积分赛',rounds:[round({'team-a':10,'team-b':5}),round({'team-a':1,'team-b':6}),round({'team-a':1,'team-b':3}),round({'team-a':4,'team-b':2})]})
+    expect(trailingSide(match)).toBe('team-b')
+    expect(pickAuthority(match)).toContain('橙队')
+  })
+  it('uses the team without first place if scores have always been tied',()=>{
+    const match=makeMatch({modeId:'kvk组队积分赛',rounds:[round({'team-a':5,'team-b':5}),round({'team-a':6,'team-b':6},{firstPlaceId:'team-a'})]})
+    expect(trailingSide(match)).toBe('team-b')
+    match.rounds[1].firstPlaceId=undefined
+    expect(trailingSide(match)).toBeUndefined()
+  })
+  it('uses the team behind on an unequal score regardless of the previous lead',()=>{
+    const match=makeMatch({rounds:[round({'team-a':10,'team-b':5}),round({'team-a':1,'team-b':4})]})
+    expect(trailingSide(match)).toBe('team-b')
+  })
   it('ranks scores automatically and asks for order only for equal scores',()=>{
     expect(rankRoundScores(['a','b'],{a:7,b:10})).toEqual(['b','a'])
     expect(rankRoundScores(['a','b'],{a:10,b:10})).toBeNull()

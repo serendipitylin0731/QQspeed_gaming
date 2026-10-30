@@ -65,6 +65,7 @@ export interface RoundResult {
   playerTimes?: Record<string, number>
   carIds?: Record<string, string>
   ranking?: string[]
+  firstPlaceId?: string
   recorded?: boolean
 }
 export interface CompletedGrandRound { id: string; modeId: string; modeParams?: Record<string, number>; specialRules: string[]; rounds: RoundResult[]; finalScores: Record<string, number>; winnerIds: string[]; completedAt: string; trackPool?: WheelFilter; specialParams?: Record<string, number>; specialTrackIds?: Record<string, string[]>; competitors?: Competitor[]; useTeamNames?: boolean }

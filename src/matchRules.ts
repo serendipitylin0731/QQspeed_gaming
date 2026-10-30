@@ -30,6 +30,49 @@ export function matchScores(match:MatchState,rounds=match.rounds){
   return Object.fromEntries(match.competitors.map(side=>[side.id,rounds.reduce((sum,round)=>sum+(round.scores[side.id]||0),0)]))
 }
 
+export function trailingSide(match:MatchState,rounds=match.rounds):string|undefined{
+  if(match.competitors.length!==2||!rounds.length)return undefined
+  const [a,b]=match.competitors.map(side=>side.id)
+  let diff=0,previouslyTiedLeader:string|undefined
+  for(const round of rounds){
+    const before=diff
+    diff+=(round.scores[a]||0)-(round.scores[b]||0)
+    if(diff===0&&before!==0)previouslyTiedLeader=before>0?a:b
+  }
+  if(diff!==0)return diff<0?a:b
+  if(previouslyTiedLeader)return previouslyTiedLeader
+  const last=rounds.at(-1)
+  const first=last?.firstPlaceId||(last?.winnerIds?.length===1?last.winnerIds[0]:undefined)
+  return first===a?b:first===b?a:undefined
+}
+
+export function pickAuthority(match:MatchState):string|undefined{
+  const rounds=match.rounds.filter(round=>round.recorded!==false)
+  if(!rounds.length)return undefined
+  const last=rounds.at(-1)!
+  if(match.modeId==='计时挑战赛')return '指定地图 / 随机地图'
+  if(match.modeId==='1v1绝活单挑赛'){
+    if(rounds.length>=2*(match.modeParams.n||1))return '决胜局随机选图'
+    return `${match.competitors[rounds.length%match.competitors.length]?.name}（轮流选王图）`
+  }
+  if(match.modeId.startsWith('kvk')||match.modeId==='1v1单挑抢n'){
+    const id=trailingSide(match,rounds)
+    return id?`${match.competitors.find(side=>side.id===id)?.name}（当前落后方）`:'平分，需记录上一局第一名以确定选图方'
+  }
+  const total=matchScores(match,rounds)
+  const remaining=match.modeId.includes('滴血')?match.competitors.filter(side=>(match.modeParams.n||5)+(total[side.id]||0)>0):match.competitors
+  if(match.modeId==='多人混战滴血赛'&&remaining.length<=2){
+    const id=last.ranking?.at(-1)||(last.winnerIds?.length===1?match.competitors.find(side=>side.id!==last.winnerIds![0])?.id:undefined)
+    return id?`${match.competitors.find(side=>side.id===id)?.name}（上一局败方）`:'上一局败方 / 随机选图，请记录胜负'
+  }
+  const scoreRanking=rankRoundScores(match.competitors.map(side=>side.id),last.scores,last.ranking||[])
+  let id:string|undefined
+  if(match.modeId==='多人混战滴血赛')id=last.ranking?.[0]||last.firstPlaceId
+  else if(match.modeId==='多人混战抢n')id=last.ranking?.[1]
+  else if(match.modeId==='多人混战积分赛')id=rankRoundScores(match.competitors.map(side=>side.id),total,last.ranking||scoreRanking||[])?.[1]
+  return id?`${match.competitors.find(side=>side.id===id)?.name}（选图方）`:'请记录上一局排名以确定选图方'
+}
+
 export function rankRoundScores(competitorIds:string[],scores:Record<string,number>,tieOrder:string[]=[]):string[]|null{
   if(competitorIds.some(id=>!Number.isFinite(scores[id])))return null
   const groups=new Map<number,string[]>()
@@ -59,6 +102,7 @@ function leaders(match:MatchState,scores:Record<string,number>){
 function firstPlaceCounts(match:MatchState){
   const counts=Object.fromEntries(match.competitors.map(side=>[side.id,0]))
   for(const round of match.rounds){
+    if(round.firstPlaceId&&round.firstPlaceId in counts){counts[round.firstPlaceId]++;continue}
     const top=leaders(match,round.scores)
     if(top.length===1)counts[top[0]]++
   }
