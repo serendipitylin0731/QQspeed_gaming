@@ -12,7 +12,7 @@ export function Dashboard({ data, setPage }: { data: AppData; update: (fn: (d: A
       <div className="hero-copy">
         <span className="eyebrow"><Sparkles size={14}/> READY TO RACE</span>
         <h1>今晚，跑哪张图？</h1>
-        <p>图池、纪录与比赛规则都已就位。开启一场随机抽取，或继续管理你的专属竞速仓库。</p>
+        
         <div className="hero-actions">
           <button className="btn primary" onClick={() => setPage('wheel')}><Play size={17} fill="currentColor"/> 开始抽图</button>
           <button className="btn ghost" onClick={() => setPage('match')}><Trophy size={17}/> 打开计分台</button>
@@ -43,8 +43,8 @@ export function Dashboard({ data, setPage }: { data: AppData; update: (fn: (d: A
       </div>
       <div className="panel quick-panel">
         <div className="section-head"><div><span className="eyebrow">QUICK START</span><h2>快捷操作</h2></div></div>
-        <button onClick={() => setPage('wheel')}><span className="quick-icon purple"><Sparkles/></span><div><strong>随机地图</strong><small>按图池和星级抽取</small></div><ChevronRight/></button>
-        <button onClick={() => setPage('match')}><span className="quick-icon blue"><Trophy/></span><div><strong>新建对局</strong><small>选择玩法并开始计分</small></div><ChevronRight/></button>
+        <button onClick={() => setPage('wheel')}><span className="quick-icon purple"><Sparkles/></span><div><strong>随机地图</strong></div><ChevronRight/></button>
+        <button onClick={() => setPage('match')}><span className="quick-icon blue"><Trophy/></span><div><strong>新建对局</strong></div><ChevronRight/></button>
         <button onClick={() => setPage('settings')}><span className="quick-icon green"><Database/></span><div><strong>同步官网</strong><small>{data.lastSync ? `上次 ${new Date(data.lastSync).toLocaleDateString('zh-CN')}` : '尚未同步'}</small></div><ChevronRight/></button>
       </div>
     </section>

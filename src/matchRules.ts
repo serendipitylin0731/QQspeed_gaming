@@ -43,7 +43,7 @@ export function matchTrackCandidates(match:MatchState,tracks:Track[]){
 }
 
 export function poolName(filter:WheelFilter){
-  const base={all:'全图池',peak:'巅峰赛图池',league:'联赛图池',custom:'自定义图池'}[filter.base]
+  const base={all:'全图池',peak:'巅峰赛图池',league:'联赛图池',item:'道具图池',custom:'自定义图池'}[filter.base]
   return `${base} · ${filter.stars.slice().sort((a,b)=>a-b).join('/')} 星${filter.noRepeat?' · 不重复':''}`
 }
 

@@ -12,7 +12,7 @@ export function CarLibrary({ data, update }: { data: AppData; update: (fn: (d: A
   const cars = useMemo(() => data.cars.filter(x => (!search.trim() || x.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())) && (grade === '全部' || x.grade === grade)).sort((a,b)=>{const ai=gradeOrder.indexOf(a.grade),bi=gradeOrder.indexOf(b.grade);return (ai<0?99:ai)-(bi<0?99:bi)||a.name.localeCompare(b.name,'zh-CN')}), [data.cars, search, grade])
   if(selected) return <CarDetailPage car={data.cars.find(x=>x.id===selected.id)!} update={update} onBack={()=>setSelected(null)}/>
   return <div className="page-enter">
-    <div className="page-title"><div><span className="eyebrow">VEHICLE ARCHIVE</span><h1>赛车图鉴</h1><p>按等级浏览，管理每辆赛车的皮肤</p></div><div className="count-display"><CarFront/><strong>{data.cars.length}</strong><span>辆已收录</span></div></div>
+    <div className="page-title"><div><span className="eyebrow">VEHICLE ARCHIVE</span><h1>赛车图鉴</h1></div><div className="count-display"><CarFront/><strong>{data.cars.length}</strong><span>辆已收录</span></div></div>
     <div className="toolbar panel-lite">
       <label className="search-box"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="输入赛车名称（支持部分搜索）"/><kbd>{cars.length}</kbd></label>
       <div className="segmented">{grades.map(x=><button key={x} className={grade===x?'active':''} onClick={()=>setGrade(x)}>{x}</button>)}</div>
@@ -37,7 +37,7 @@ function CarDetailPage({ car, update, onBack }: { car: Car; update: (fn: (d: App
     <div className="skin-picker"><div className="skin-title"><div><span className="eyebrow">PAINT COLLECTION</span><h3>皮肤收藏</h3></div><button className="btn small ghost" onClick={()=>setAdding(!adding)}><Plus size={15}/> 添加皮肤</button></div>
       {adding&&<div className="add-skin"><input value={name} onChange={e=>setName(e.target.value)} placeholder="皮肤名称"/><input value={cover} onChange={e=>setCover(e.target.value)} placeholder="封面图片地址"/><button className="btn primary small" onClick={add}>添加</button></div>}
       <div className="skin-grid">{car.skins.map(skin=><button key={skin.id} className={skin.id===car.selectedSkinId?'active':''} onClick={()=>patch({selectedSkinId:skin.id})}><div><SmartImage src={skin.cover}/>{skin.id===car.selectedSkinId&&<span className="selected-check"><Check size={13}/></span>}</div><strong>{skin.name}</strong></button>)}</div>
-      <p className="car-description">{car.description||'这辆赛车尚无详细介绍。你可以为它添加并切换不同皮肤，外部图鉴会始终显示当前选中的皮肤。'}</p>
+      <p className="car-description">{car.description||'暂无赛车介绍。'}</p>
     </div></div>
   </div>
 }

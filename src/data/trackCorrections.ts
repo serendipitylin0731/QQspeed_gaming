@@ -1,5 +1,7 @@
 import type { Track } from '../types'
+import { emptyPools } from './pools'
 
 export function correctTrack(track: Track): Track {
-  return track.name.trim() === '夜游潇湘' && track.star !== 3 ? { ...track, star: 3 } : track
+  const normalized = track.pools && typeof track.pools.item === 'boolean' ? track : { ...track, pools: { ...emptyPools, ...track.pools } }
+  return normalized.name.trim() === '夜游潇湘' && normalized.star !== 3 ? { ...normalized, star: 3 } : normalized
 }

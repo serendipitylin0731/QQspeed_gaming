@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { initialData } from '../data/seed'
 import { correctTrack } from '../data/trackCorrections'
+import { emptyPools } from '../data/pools'
 import type { AppData, Car, Track } from '../types'
 
 const STORAGE_KEY = 'qqspeed-vault-data-v2'
@@ -41,7 +42,7 @@ export function useAppData() {
         const existingCars = new Map(current.cars.map((x) => [x.id, x]))
         const officialMaps = result.maps.map((fresh) => {
           const old = existingMaps.get(fresh.id!)
-          return correctTrack({ pools: { sailing: false, nostalgia: false, peak: false, league: false }, king: false, ...fresh, ...old,
+          return correctTrack({ king: false, ...fresh, ...old, pools: { ...emptyPools, ...fresh.pools, ...old?.pools },
             name: fresh.name!, star: fresh.star!, coverHorizontal: fresh.coverHorizontal!, coverVertical: fresh.coverVertical! } as Track)
         })
         const officialCars = result.cars.map((fresh) => {

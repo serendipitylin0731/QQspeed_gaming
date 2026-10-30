@@ -1,4 +1,4 @@
-export type PoolKey = 'sailing' | 'nostalgia' | 'peak' | 'league'
+export type PoolKey = 'sailing' | 'nostalgia' | 'peak' | 'league' | 'item'
 
 export interface TrackRecord {
   time: string
@@ -37,7 +37,7 @@ export interface Car {
 }
 
 export interface WheelFilter {
-  base: 'all' | 'peak' | 'league' | 'custom'
+  base: 'all' | 'peak' | 'league' | 'item' | 'custom'
   stars: number[]
   excludeSailing: boolean
   excludeNostalgia: boolean

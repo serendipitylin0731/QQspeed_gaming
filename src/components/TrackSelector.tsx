@@ -3,8 +3,7 @@ import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { PoolKey, Track } from '../types'
 import { SmartImage } from './SmartImage'
-
-const labels:Record<PoolKey,string>={sailing:'航海',nostalgia:'怀旧',peak:'巅峰赛',league:'联赛'}
+import { poolLabels as labels } from '../data/pools'
 
 export function TrackConfirmation({track,action='选择',onConfirm,onCancel}:{track:Track;action?:string;onConfirm:()=>void;onCancel:()=>void}){
   return createPortal(<div className="track-confirm-backdrop" role="dialog" aria-modal="true" aria-labelledby="track-confirm-title"><div className="track-confirm-card"><h2 id="track-confirm-title">确认{action}赛道？</h2><SmartImage src={track.coverHorizontal}/><strong>{track.name}</strong><p>{track.star} 星赛道</p><div><button type="button" className="btn ghost" onClick={onCancel}>取消</button><button type="button" className="btn primary" onClick={onConfirm}>确认{action}</button></div></div></div>,document.body)

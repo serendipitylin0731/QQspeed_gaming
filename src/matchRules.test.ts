@@ -8,11 +8,22 @@ const round=(scores:Record<string,number>,extra:Partial<RoundResult>={}):RoundRe
 const makeMatch=(patch:Partial<MatchState>={}):MatchState=>({...structuredClone(initialData.match),configured:true,...patch})
 
 describe('赛道星级和比赛选图',()=>{
-  const track=(id:string,name:string,star:number):Track=>({id,name,star,coverHorizontal:'',coverVertical:'',king:false,pools:{sailing:false,nostalgia:false,peak:false,league:false}})
+  const track=(id:string,name:string,star:number):Track=>({id,name,star,coverHorizontal:'',coverVertical:'',king:false,pools:{sailing:false,nostalgia:false,peak:false,league:false,item:false}})
   const tracks=[track('a','夜游潇湘',5),track('alias','夜游潇湘',3),track('b','赛道乙',5),track('ban','禁图',5),track('ban-alias','禁图',5),track('c','赛道丙',3)]
   it('修正夜游潇湘星级，保留赛道其他资料',()=>{
     expect(correctTrack({...tracks[0],king:true})).toMatchObject({name:'夜游潇湘',star:3,king:true})
     expect(correctTrack(tracks[2])).toBe(tracks[2])
+  })
+  it('旧赛道数据补充道具图池并保留已有图池设置',()=>{
+    const legacy={...tracks[2],pools:{sailing:true,nostalgia:false,peak:true,league:false}} as Track
+    expect(correctTrack(legacy).pools).toEqual({sailing:true,nostalgia:false,peak:true,league:false,item:false})
+    expect(correctTrack({...tracks[2],pools:{...tracks[2].pools,item:true}}).pools.item).toBe(true)
+  })
+  it('道具图池可作为比赛和转盘的筛选范围',()=>{
+    const itemTrack={...tracks[2],pools:{...tracks[2].pools,item:true}}
+    const filter={...initialData.match.trackPool,base:'item' as const}
+    expect(tracksInPool([tracks[0],itemTrack],filter).map(t=>t.id)).toEqual(['b'])
+    expect(matchTrackCandidates(makeMatch({trackPool:filter}),[tracks[0],itemTrack]).map(t=>t.id)).toEqual(['b'])
   })
   it('普通比赛即使旧设置允许重复，也排除已使用和被禁的同名赛道',()=>{
     const match=makeMatch({trackPool:{...initialData.match.trackPool,noRepeat:false},specialRules:['赛道BP（Ban 图）'],specialTrackIds:{'bp:team-a:ban':['ban']},rounds:[round({'team-a':1,'team-b':0},{trackId:'a'})]})
@@ -167,9 +178,9 @@ describe('match track pool',()=>{
   })
   it('applies base pool, stars and exclusions together',()=>{
     const tracks=[
-      {id:'a',name:'A',star:5,pools:{sailing:false,nostalgia:false,peak:true,league:false},king:false},
-      {id:'b',name:'B',star:5,pools:{sailing:true,nostalgia:false,peak:true,league:false},king:false},
-      {id:'c',name:'C',star:4,pools:{sailing:false,nostalgia:false,peak:true,league:false},king:false},
+      {id:'a',name:'A',star:5,pools:{sailing:false,nostalgia:false,peak:true,league:false,item:false},king:false},
+      {id:'b',name:'B',star:5,pools:{sailing:true,nostalgia:false,peak:true,league:false,item:false},king:false},
+      {id:'c',name:'C',star:4,pools:{sailing:false,nostalgia:false,peak:true,league:false,item:false},king:false},
     ] as Track[]
     expect(tracksInPool(tracks,{base:'peak',stars:[5],excludeSailing:true,excludeNostalgia:false,customTrackIds:[],noRepeat:false}).map(track=>track.id)).toEqual(['a'])
   })
